@@ -101,9 +101,14 @@ Respond with ONLY a valid JSON object — no markdown, no preamble, no commentar
     "key_actives": "<comma-separated actives in the Korean product>",
     "amazon_url": "https://www.amazon.com/s?k=<URL-encoded Korean product>",
     "sephora_url": "",
-    "yesstyle_url": "https://www.yesstyle.com/en/search.html?keyword=<URL-encoded Korean product>"
+    "yesstyle_url": "https://www.yesstyle.com/en/search.html?keyword=<SHORT>"
   }
-}`;
+}
+
+For yesstyle_url specifically: the <SHORT> keyword must be ONLY the Korean brand name + the first two words of the product name. Full long product names cause YesStyle URL errors. Replace spaces with + signs. Examples:
+  - "Some By Mi AHA-BHA-PHA 30 Days Miracle Toner" → keyword=Some+By+Mi+AHA-BHA-PHA+30
+  - "Beauty of Joseon Glow Serum Propolis Niacinamide" → keyword=Beauty+of+Joseon+Glow+Serum
+  - "COSRX Advanced Snail 96 Mucin Power Essence" → keyword=COSRX+Advanced+Snail`;
 
   let text = "";
   try {

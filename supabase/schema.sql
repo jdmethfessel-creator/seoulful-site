@@ -69,3 +69,20 @@ create policy "Public read" on public.korean_alternatives
 update public.korean_alternatives
 set    yesstyle_url = replace(yesstyle_url, 'search?queryString=', 'search.html?keyword=')
 where  yesstyle_url like '%search?queryString=%';
+
+-- ============================================================================
+-- Truncate over-long YesStyle keywords to the first 3 space-delimited
+-- tokens (≈ brand + first 2 product words). Long keywords trigger
+-- YesStyle URL errors. Handles both '+' and '%20' as space encodings.
+-- Idempotent: re-running collapses 3 tokens to 3 tokens.
+-- ============================================================================
+update public.korean_alternatives
+set    yesstyle_url = 'https://www.yesstyle.com/en/search.html?keyword=' ||
+       array_to_string(
+         (regexp_split_to_array(
+           regexp_replace(yesstyle_url, '^.*[?&]keyword=', ''),
+           '\+|%20'
+         ))[1:3],
+         '+'
+       )
+where  yesstyle_url like '%/en/search.html?keyword=%';
