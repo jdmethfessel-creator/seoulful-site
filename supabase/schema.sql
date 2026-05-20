@@ -46,8 +46,17 @@ create index if not exists korean_alternatives_match_score_idx
   on public.korean_alternatives (match_score desc);
 
 -- ============================================================================
--- RLS: lock down by default; access via service_role only until the app
--- has real auth + per-user policies. Toggle off if you need anon reads.
+-- RLS: both tables enabled with PUBLIC READ policies. The app is a
+-- read-only search experience, so anon SELECT is intentional. Add per-user
+-- INSERT / UPDATE / DELETE policies later when auth is wired up.
 -- ============================================================================
 alter table public.products enable row level security;
 alter table public.korean_alternatives enable row level security;
+
+drop policy if exists "Public read" on public.products;
+create policy "Public read" on public.products
+  for select using (true);
+
+drop policy if exists "Public read" on public.korean_alternatives;
+create policy "Public read" on public.korean_alternatives
+  for select using (true);
