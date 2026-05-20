@@ -101,7 +101,7 @@ Respond with ONLY a valid JSON object — no markdown, no preamble, no commentar
     "key_actives": "<comma-separated actives in the Korean product>",
     "amazon_url": "https://www.amazon.com/s?k=<URL-encoded Korean product>",
     "sephora_url": "",
-    "yesstyle_url": "https://www.yesstyle.com/en/search?queryString=<URL-encoded Korean product>"
+    "yesstyle_url": "https://www.yesstyle.com/en/search.html?keyword=<URL-encoded Korean product>"
   }
 }`;
 

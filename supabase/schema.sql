@@ -60,3 +60,12 @@ create policy "Public read" on public.products
 drop policy if exists "Public read" on public.korean_alternatives;
 create policy "Public read" on public.korean_alternatives
   for select using (true);
+
+-- ============================================================================
+-- One-off fix: rewrite legacy YesStyle URLs from the old ?queryString=
+-- format to the canonical search.html?keyword= form. Idempotent — after
+-- first run no rows match the LIKE filter so this is a no-op.
+-- ============================================================================
+update public.korean_alternatives
+set    yesstyle_url = replace(yesstyle_url, 'search?queryString=', 'search.html?keyword=')
+where  yesstyle_url like '%search?queryString=%';
