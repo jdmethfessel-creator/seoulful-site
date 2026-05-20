@@ -86,3 +86,16 @@ set    yesstyle_url = 'https://www.yesstyle.com/en/search.html?keyword=' ||
          '+'
        )
 where  yesstyle_url like '%/en/search.html?keyword=%';
+
+-- ============================================================================
+-- Append the seoulful-20 affiliate tag to any amazon_url that doesn't
+-- already carry it. Idempotent — the NOT LIKE guard filters tagged rows
+-- on re-run.
+-- ============================================================================
+update public.korean_alternatives
+set    amazon_url = amazon_url ||
+       (case when amazon_url like '%?%' then '&' else '?' end) ||
+       'tag=seoulful-20'
+where  amazon_url is not null
+  and  amazon_url like '%amazon.com%'
+  and  amazon_url not like '%tag=seoulful-20%';

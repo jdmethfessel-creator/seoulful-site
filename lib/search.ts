@@ -99,11 +99,13 @@ Respond with ONLY a valid JSON object — no markdown, no preamble, no commentar
     "price": <number, USD>,
     "match_score": <integer 0-100 — how close the active profile matches>,
     "key_actives": "<comma-separated actives in the Korean product>",
-    "amazon_url": "https://www.amazon.com/s?k=<URL-encoded Korean product>",
+    "amazon_asin": "<10-char Amazon ASIN for this product, or empty string if you don't confidently know it>",
     "sephora_url": "",
     "yesstyle_url": "https://www.yesstyle.com/en/search.html?keyword=<SHORT>"
   }
 }
+
+For amazon_asin: return the product's 10-character Amazon Standard Identification Number (ASIN) if you confidently know it (e.g., "B07W6BG87X"). Do NOT guess. If you are not sure, return an empty string and we will fall back to an Amazon search URL.
 
 For yesstyle_url specifically: the <SHORT> keyword must be ONLY the Korean brand name + the first two words of the product name. Full long product names cause YesStyle URL errors. Replace spaces with + signs. Examples:
   - "Some By Mi AHA-BHA-PHA 30 Days Miracle Toner" → keyword=Some+By+Mi+AHA-BHA-PHA+30
@@ -150,13 +152,19 @@ For yesstyle_url specifically: the <SHORT> keyword must be ONLY the Korean brand
     return null;
   }
 
-  let parsed: { product: Product; alternative: Alternative };
+  type ParsedAlt = Alternative & { amazon_asin?: string };
+  let parsed: { product: Product; alternative: ParsedAlt };
   try {
     parsed = JSON.parse(cleaned.slice(first, last + 1));
   } catch (err) {
     console.error("[search] JSON.parse failed:", err);
     return null;
   }
+
+  const amazonUrl = buildAmazonUrl(
+    parsed.alternative.amazon_asin,
+    parsed.alternative.name
+  );
 
   const stamp = Date.now().toString();
   return {
@@ -169,10 +177,29 @@ For yesstyle_url specifically: the <SHORT> keyword must be ONLY the Korean brand
     alternatives: [
       {
         ...parsed.alternative,
+        amazon_url: amazonUrl,
         id: `ai-alt-${stamp}`,
         western_product_id: null,
         ingredient_list: null,
       },
     ],
   };
+}
+
+// Construct an Amazon link with the seoulful-20 affiliate tag.
+// Prefers a direct /dp/<ASIN> URL when Claude gave us a confident ASIN;
+// falls back to an Amazon search URL otherwise. Affiliate tag is always
+// appended.
+export function buildAmazonUrl(
+  asin: string | null | undefined,
+  fallbackQuery: string | null | undefined
+): string {
+  const tag = "seoulful-20";
+  const trimmedAsin = (asin || "").trim();
+  if (/^[A-Z0-9]{10}$/i.test(trimmedAsin)) {
+    return `https://www.amazon.com/dp/${trimmedAsin.toUpperCase()}?tag=${tag}`;
+  }
+  const q = (fallbackQuery || "").trim();
+  if (!q) return "";
+  return `https://www.amazon.com/s?k=${encodeURIComponent(q)}&tag=${tag}`;
 }
