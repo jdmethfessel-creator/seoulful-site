@@ -281,15 +281,9 @@ function KoreanCard({ alt }: { alt: Alternative }) {
       )}
 
       <div className="mt-6 flex flex-wrap gap-2">
-        {alt.amazon_url && (
-          <BuyButton href={alt.amazon_url} label="Buy on Amazon" />
-        )}
-        {alt.sephora_url && (
-          <BuyButton href={alt.sephora_url} label="Buy on Sephora" />
-        )}
-        {alt.yesstyle_url && (
-          <BuyButton href={alt.yesstyle_url} label="Buy on YesStyle" />
-        )}
+        <BuyButton href={alt.amazon_url} label="Buy on Amazon" />
+        <BuyButton href={alt.sephora_url} label="Buy on Sephora" />
+        <BuyButton href={alt.yesstyle_url} label="Buy on YesStyle" />
       </div>
     </div>
   );
@@ -328,7 +322,14 @@ function AltCard({ alt }: { alt: Alternative }) {
   );
 }
 
-function BuyButton({ href, label }: { href: string; label: string }) {
+function BuyButton({
+  href,
+  label,
+}: {
+  href: string | null | undefined;
+  label: string;
+}) {
+  if (!href || !href.trim()) return null;
   return (
     <a
       href={href}
