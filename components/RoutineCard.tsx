@@ -12,6 +12,7 @@ const MUTED = "#8a8480";
 
 export default function RoutineCard({ routine }: { routine: Routine }) {
   const annual = Math.max(0, Math.round(routine.summary.annual_savings));
+  const showSavings = routine.has_specific_products && annual > 0;
 
   return (
     <div
@@ -57,8 +58,19 @@ export default function RoutineCard({ routine }: { routine: Routine }) {
           lineHeight: 1.05,
         }}
       >
-        I switched my routine to K-beauty and{" "}
-        <span style={{ color: GREEN }}>saved ${annual.toLocaleString()}/year</span>
+        {showSavings ? (
+          <>
+            I switched my routine to K-beauty and{" "}
+            <span style={{ color: GREEN }}>
+              saved ${annual.toLocaleString()}/year
+            </span>
+          </>
+        ) : (
+          <>
+            My new{" "}
+            <span style={{ color: GREEN }}>K-beauty routine</span>
+          </>
+        )}
       </h2>
 
       <div className="grid grid-cols-2 gap-4 mt-7">
@@ -70,7 +82,34 @@ export default function RoutineCard({ routine }: { routine: Routine }) {
         className="mt-7 pt-5 flex items-center justify-between"
         style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
       >
-        <div className="flex flex-col">
+        {showSavings ? (
+          <div className="flex flex-col">
+            <span
+              className="text-xs uppercase"
+              style={{
+                color: MUTED,
+                letterSpacing: "0.18em",
+                fontWeight: 500,
+              }}
+            >
+              Monthly
+            </span>
+            <span
+              className="text-lg"
+              style={{
+                fontFamily: "var(--font-syne), system-ui, sans-serif",
+                fontWeight: 700,
+              }}
+            >
+              <span style={{ color: MUTED, textDecoration: "line-through" }}>
+                ${Math.round(routine.summary.current_total)}
+              </span>{" "}
+              <span style={{ color: GREEN }}>
+                ${Math.round(routine.summary.kdupe_total)}
+              </span>
+            </span>
+          </div>
+        ) : (
           <span
             className="text-xs uppercase"
             style={{
@@ -79,23 +118,9 @@ export default function RoutineCard({ routine }: { routine: Routine }) {
               fontWeight: 500,
             }}
           >
-            Monthly
+            Built with kDupe
           </span>
-          <span
-            className="text-lg"
-            style={{
-              fontFamily: "var(--font-syne), system-ui, sans-serif",
-              fontWeight: 700,
-            }}
-          >
-            <span style={{ color: MUTED, textDecoration: "line-through" }}>
-              ${Math.round(routine.summary.current_total)}
-            </span>{" "}
-            <span style={{ color: GREEN }}>
-              ${Math.round(routine.summary.kdupe_total)}
-            </span>
-          </span>
-        </div>
+        )}
         <div
           className="text-sm"
           style={{

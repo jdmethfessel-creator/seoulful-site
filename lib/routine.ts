@@ -29,6 +29,10 @@ export type RoutineSummary = {
 };
 
 export type Routine = {
+  // True when the user input named real products we can compare against.
+  // False when the input was a natural-language description and the
+  // "western" fields are LLM-invented stand-ins rather than user products.
+  has_specific_products: boolean;
   summary: RoutineSummary;
   morning: RoutineStep[];
   evening: RoutineStep[];

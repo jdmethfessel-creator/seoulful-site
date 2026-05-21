@@ -191,6 +191,12 @@ Requirements:
 - Calculate total cost of their current routine vs total cost of K-beauty routine
 - Calculate annual savings ((current_total - kdupe_total) * 12)
 
+HAS_SPECIFIC_PRODUCTS — VERY IMPORTANT:
+- Set has_specific_products to true if the user named at least one real, identifiable product (brand + product, like "Drunk Elephant B-Hydra", "La Mer Moisturizing Cream", "SkinCeuticals C E Ferulic", or even just "La Mer").
+- Set it to false if the user only described their routine in general terms ("I use a vitamin C serum in the morning") without naming actual products, OR only mentioned brands without specific products ("I use mostly Tatcha"), OR talked only about budget/preferences.
+- A mix of both → true (any real named product is enough).
+- When this flag is false, the UI will hide the Western "before" column and the cost comparison. Still fill in the western fields with reasonable stand-ins so your matching reasoning works, but the user will never see them.
+
 CONFLICTS_DETECTED — VERY IMPORTANT:
 - Write each entry in plain English a non-chemist can understand in 3 seconds. No chemistry jargon, no pH, no mechanisms, no scientific terms like "oxidative degradation" or "barrier disruption".
 - Start with "Heads up:" and tell the user (a) what shouldn't be used together and (b) how this routine handles it.
@@ -201,6 +207,7 @@ CONFLICTS_DETECTED — VERY IMPORTANT:
 
 Return ONLY valid JSON in this exact shape — no markdown, no preamble, no commentary:
 {
+  "has_specific_products": true,
   "summary": {
     "current_total": 0,
     "kdupe_total": 0,
@@ -277,6 +284,10 @@ function normalizeRoutine(input: unknown): Routine {
     : [];
 
   return {
+    // Default false: when Claude forgets the flag we'd rather hide
+    // potentially-invented Western prices than show them as if they
+    // came from the user.
+    has_specific_products: obj.has_specific_products === true,
     summary: {
       current_total: toNumber(summaryIn.current_total) ?? 0,
       kdupe_total: toNumber(summaryIn.kdupe_total) ?? 0,

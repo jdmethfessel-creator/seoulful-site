@@ -185,15 +185,29 @@ Examples:
         <div className="mt-12">
           <Conflicts items={routine.summary.conflicts_detected} />
 
-          <SummaryBar
-            current={routine.summary.current_total}
-            kdupe={routine.summary.kdupe_total}
-            annual={routine.summary.annual_savings}
-          />
+          {routine.has_specific_products && (
+            <SummaryBar
+              current={routine.summary.current_total}
+              kdupe={routine.summary.kdupe_total}
+              annual={routine.summary.annual_savings}
+            />
+          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            <RoutineColumn title="Morning" steps={routine.morning} />
-            <RoutineColumn title="Evening" steps={routine.evening} />
+          <div
+            className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${
+              routine.has_specific_products ? "mt-6" : ""
+            }`}
+          >
+            <RoutineColumn
+              title="Morning"
+              steps={routine.morning}
+              showWestern={routine.has_specific_products}
+            />
+            <RoutineColumn
+              title="Evening"
+              steps={routine.evening}
+              showWestern={routine.has_specific_products}
+            />
           </div>
 
           <div className="mt-10 flex flex-col items-center gap-4">
@@ -413,9 +427,11 @@ function SummaryBar({
 function RoutineColumn({
   title,
   steps,
+  showWestern,
 }: {
   title: string;
   steps: RoutineStep[];
+  showWestern: boolean;
 }) {
   return (
     <div
@@ -438,7 +454,7 @@ function RoutineColumn({
       ) : (
         <ol className="space-y-4">
           {steps.map((s, i) => (
-            <StepRow key={i} step={s} />
+            <StepRow key={i} step={s} showWestern={showWestern} />
           ))}
         </ol>
       )}
@@ -446,7 +462,13 @@ function RoutineColumn({
   );
 }
 
-function StepRow({ step }: { step: RoutineStep }) {
+function StepRow({
+  step,
+  showWestern,
+}: {
+  step: RoutineStep;
+  showWestern: boolean;
+}) {
   return (
     <li>
       <div
@@ -459,26 +481,32 @@ function StepRow({ step }: { step: RoutineStep }) {
       >
         {step.step || "Step"}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div>
-          <div className="text-sm" style={{ color: TEXT, fontWeight: 300 }}>
-            {step.western.brand ? `${step.western.brand} ` : ""}
-            {step.western.name || "—"}
-          </div>
-          {step.western.price > 0 && (
-            <div
-              className="text-sm"
-              style={{
-                color: MUTED,
-                textDecoration: "line-through",
-                fontFamily: SYNE,
-                fontWeight: 600,
-              }}
-            >
-              ${Math.round(step.western.price)}
+      <div
+        className={
+          showWestern ? "grid grid-cols-1 sm:grid-cols-2 gap-2" : ""
+        }
+      >
+        {showWestern && (
+          <div>
+            <div className="text-sm" style={{ color: TEXT, fontWeight: 300 }}>
+              {step.western.brand ? `${step.western.brand} ` : ""}
+              {step.western.name || "—"}
             </div>
-          )}
-        </div>
+            {step.western.price > 0 && (
+              <div
+                className="text-sm"
+                style={{
+                  color: MUTED,
+                  textDecoration: "line-through",
+                  fontFamily: SYNE,
+                  fontWeight: 600,
+                }}
+              >
+                ${Math.round(step.western.price)}
+              </div>
+            )}
+          </div>
+        )}
         <div>
           <div className="text-sm flex items-baseline gap-2 flex-wrap">
             <span style={{ color: TEXT, fontWeight: 400 }}>
