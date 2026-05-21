@@ -58,7 +58,7 @@ export default function Home() {
             type="text"
             name="q"
             required
-            placeholder="Search any skincare product..."
+            placeholder="Paste a Sephora / Ulta / Kiehl's URL, or search any product..."
             autoComplete="off"
             className="flex-1 rounded-lg px-5 py-4 text-base outline-none transition-colors"
             style={{

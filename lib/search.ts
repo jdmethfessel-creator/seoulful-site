@@ -131,35 +131,7 @@ For yesstyle_url specifically: the path is /en/list.html and the q= value must b
 
 For the Amazon fallback search: when no ASIN is available, our code builds the URL automatically from the Korean brand + product name (brand first), so make sure both the brand and name fields are populated correctly — the keyword is generated as "{brand} {name}".`;
 
-  let text = "";
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) {
-      console.error("[search] Claude error:", res.status, await res.text());
-      return null;
-    }
-    const data = await res.json();
-    text =
-      Array.isArray(data.content) && data.content[0]?.type === "text"
-        ? data.content[0].text
-        : "";
-  } catch (err) {
-    console.error("[search] Claude fetch failed:", err);
-    return null;
-  }
-
+  const text = await callClaude(prompt, 1024);
   if (!text) return null;
 
   // Robust JSON extraction — Claude sometimes wraps in ```json fences.
@@ -224,4 +196,237 @@ export function buildAmazonUrl(
   const q = (fallbackQuery || "").trim();
   if (!q) return "";
   return `https://www.amazon.com/s?k=${encodeURIComponent(q)}&tag=${tag}`;
+}
+
+// =====================================================================
+// URL paste / scrape pipeline
+// =====================================================================
+
+// Hostnames we'll attempt to fetch + parse. Anything else returns a
+// "not supported" error rather than guessing at random Web pages.
+const SCRAPE_ALLOWED_HOSTS = ["sephora.com", "ulta.com", "kiehls.com"];
+
+export type ExtractedProduct = {
+  name: string;
+  brand: string;
+  price: number | null;
+  category: string | null;
+  flagged_ingredients: string;
+  key_actives: string;
+};
+
+export type ScrapeResult =
+  | { ok: true; result: SearchResult }
+  | { ok: false; error: string };
+
+export function isUrlInput(s: string): boolean {
+  return /^https?:\/\//i.test(s.trim());
+}
+
+function checkScrapeAllowed(url: string): { ok: boolean; reason?: string } {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return { ok: false, reason: "That doesn't look like a valid URL." };
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    return { ok: false, reason: "Only http(s) URLs are supported." };
+  }
+  const host = u.hostname.toLowerCase();
+  const ok = SCRAPE_ALLOWED_HOSTS.some(
+    (h) => host === h || host === `www.${h}` || host.endsWith(`.${h}`)
+  );
+  if (!ok) {
+    return {
+      ok: false,
+      reason: `URL host not yet supported. Currently we can scrape Sephora, Ulta, and Kiehl's pages. Try copying the product name into the search box instead.`,
+    };
+  }
+  return { ok: true };
+}
+
+async function fetchHtml(
+  url: string
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        // Browser-like UA — Sephora/Ulta WAFs sometimes 403 default fetch UAs.
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(12000),
+      redirect: "follow",
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Page returned HTTP ${res.status}. Some retailers (especially Sephora) block server-side fetches — try pasting the product name instead.`,
+      };
+    }
+    const text = await res.text();
+    if (!text || text.length < 200) {
+      return { ok: false, error: "Page returned no content." };
+    }
+    return { ok: true, text };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      error: `Could not fetch URL: ${msg}. The retailer may be blocking server-side requests.`,
+    };
+  }
+}
+
+function stripHtmlForExtraction(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function extractProductFromHtml(
+  rawHtml: string,
+  sourceUrl: string
+): Promise<ExtractedProduct | null> {
+  const cleaned = stripHtmlForExtraction(rawHtml).slice(0, 40000);
+
+  const prompt = `You are an HTML extraction agent. Given the stripped HTML of a skincare product detail page, identify the single product on the page and return ONLY a JSON object with these fields:
+
+{
+  "name": "<full product name as listed on the page, no brand prefix duplication>",
+  "brand": "<brand>",
+  "price": <number in USD, no currency symbol, or null if not found>,
+  "category": "<one of: serum|moisturizer|cleanser|toner|sunscreen|eye cream|essence|exfoliant|mask>",
+  "flagged_ingredients": "<comma-separated concerning ingredients from the ingredient list (fragrance, denatured alcohol, parabens, formaldehyde releasers, etc) — empty string if none or unknown>",
+  "key_actives": "<comma-separated beneficial actives present in the ingredient list (niacinamide, vitamin C / ascorbic acid, retinol, peptides, hyaluronic acid, salicylic acid, glycolic acid, ceramides, panthenol, etc) — empty string if not found>"
+}
+
+Source URL (use for brand/category hints if the visible HTML is ambiguous): ${sourceUrl}
+
+Stripped HTML (truncated to 40 KB):
+${cleaned}
+
+Return ONLY the JSON object. No preamble, no markdown fences.`;
+
+  const text = await callClaude(prompt, 1024);
+  if (!text) return null;
+
+  const cleanedJson = text.replace(/```(?:json)?/g, "").trim();
+  const first = cleanedJson.indexOf("{");
+  const last = cleanedJson.lastIndexOf("}");
+  if (first === -1 || last === -1 || last <= first) {
+    console.error("[scrape] no JSON in Claude extraction:", text.slice(0, 200));
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(cleanedJson.slice(first, last + 1)) as Partial<ExtractedProduct>;
+    if (!parsed.name || !parsed.brand) return null;
+    return {
+      name: parsed.name,
+      brand: parsed.brand,
+      price: typeof parsed.price === "number" ? parsed.price : null,
+      category: parsed.category || null,
+      flagged_ingredients: parsed.flagged_ingredients || "",
+      key_actives: parsed.key_actives || "",
+    };
+  } catch (err) {
+    console.error("[scrape] JSON.parse failed:", err);
+    return null;
+  }
+}
+
+// Scrape a retailer product page, extract the Western product details,
+// then run those through the existing AI-fallback flow to find the
+// Korean alternative. Returns a ScrapeResult with either the joined
+// SearchResult or a human-readable error string.
+export async function searchFromUrl(url: string): Promise<ScrapeResult> {
+  const gate = checkScrapeAllowed(url);
+  if (!gate.ok) return { ok: false, error: gate.reason || "URL not allowed" };
+
+  const html = await fetchHtml(url);
+  if (!html.ok) return { ok: false, error: html.error };
+
+  const extracted = await extractProductFromHtml(html.text, url);
+  if (!extracted) {
+    return {
+      ok: false,
+      error:
+        "Couldn't extract product info from that page. Try pasting the product name directly into the search box.",
+    };
+  }
+
+  const query = [extracted.brand, extracted.name]
+    .filter((s) => s && s.trim().length > 0)
+    .join(" ");
+
+  const aiResult = await aiFallback(query);
+  if (!aiResult) {
+    return {
+      ok: false,
+      error:
+        "Couldn't find a Korean alternative for that product. Either the AI fallback is offline or no close match exists yet.",
+    };
+  }
+
+  // Overlay the scraped Western details onto the AI's product card —
+  // the page is more authoritative than Claude's recall for price,
+  // ingredients, and exact product name.
+  const product: Product = {
+    ...aiResult.product,
+    name: extracted.name || aiResult.product.name,
+    brand: extracted.brand || aiResult.product.brand,
+    price: extracted.price ?? aiResult.product.price,
+    category: extracted.category || aiResult.product.category,
+    flagged_ingredients:
+      extracted.flagged_ingredients || aiResult.product.flagged_ingredients,
+    key_actives: extracted.key_actives || aiResult.product.key_actives,
+  };
+
+  return { ok: true, result: { ...aiResult, product } };
+}
+
+// Shared Anthropic call. Returns the text body of the first text block,
+// or null on any error (network, non-2xx, missing content).
+async function callClaude(prompt: string, maxTokens: number): Promise<string | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || key === "your_anthropic_key_here") return null;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!res.ok) {
+      console.error("[claude] non-2xx:", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    if (Array.isArray(data.content) && data.content[0]?.type === "text") {
+      return data.content[0].text as string;
+    }
+    return null;
+  } catch (err) {
+    console.error("[claude] fetch failed:", err);
+    return null;
+  }
 }

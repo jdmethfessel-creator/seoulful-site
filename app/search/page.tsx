@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { searchProduct, type Alternative, type Product } from "@/lib/search";
+import {
+  isUrlInput,
+  searchFromUrl,
+  searchProduct,
+  type Alternative,
+  type Product,
+  type SearchResult,
+} from "@/lib/search";
 
 const ROSE = "#c8535a";
 const GREEN = "#3f8a5f";
@@ -27,7 +34,19 @@ export default async function SearchPage({
 }) {
   const { q = "" } = await searchParams;
   const query = q.trim();
-  const result = query ? await searchProduct(query) : null;
+  const urlMode = query && isUrlInput(query);
+
+  let result: SearchResult | null = null;
+  let scrapeError: string | null = null;
+  if (query) {
+    if (urlMode) {
+      const r = await searchFromUrl(query);
+      if (r.ok) result = r.result;
+      else scrapeError = r.error;
+    } else {
+      result = await searchProduct(query);
+    }
+  }
 
   return (
     <main className="min-h-screen px-6 pt-10 pb-20" style={{ background: "#fdf8f4" }}>
@@ -47,7 +66,7 @@ export default async function SearchPage({
             name="q"
             defaultValue={query}
             required
-            placeholder="Search any skincare product..."
+            placeholder="Paste a Sephora / Ulta / Kiehl's URL, or type a product name..."
             className="flex-1 rounded-lg px-5 py-3 text-base outline-none"
             style={{ background: "#fff", border: "1px solid #e8ddd4" }}
           />
@@ -63,11 +82,13 @@ export default async function SearchPage({
         {!query && (
           <EmptyState
             heading="Enter a product"
-            body="Type any Western skincare product name in the search bar to find its Korean alternative."
+            body="Type any Western skincare product name — or paste a Sephora / Ulta / Kiehl's URL — to find its Korean alternative."
           />
         )}
 
-        {query && !result && <NotFound query={query} />}
+        {query && scrapeError && <ScrapeError query={query} error={scrapeError} />}
+
+        {query && !scrapeError && !result && <NotFound query={query} />}
 
         {query && result && (
           <>
@@ -76,7 +97,10 @@ export default async function SearchPage({
                 className="rounded-lg px-4 py-3 mb-6 text-sm"
                 style={{ background: "#fff5e9", border: `1px solid ${AMBER}40`, color: "#7a4d20" }}
               >
-                <strong>Live match.</strong> Our K-beauty research agent found this in real time.
+                <strong>Live match.</strong>{" "}
+                {urlMode
+                  ? "We pulled this product off the page and asked our K-beauty research agent for the best Korean alternative."
+                  : "Our K-beauty research agent found this in real time."}
               </div>
             )}
 
@@ -137,6 +161,26 @@ function NotFound({ query }: { query: string }) {
         We didn&apos;t find this product in our database, and our AI fallback didn&apos;t return a usable match.
         Try a different spelling, brand-first phrasing, or the product&apos;s full name.
       </p>
+    </div>
+  );
+}
+
+function ScrapeError({ query, error }: { query: string; error: string }) {
+  return (
+    <div
+      className="rounded-lg p-8"
+      style={{ background: "#fff", border: "1px solid #ead8cc" }}
+    >
+      <h2
+        className="text-2xl mb-2"
+        style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 500 }}
+      >
+        Couldn&apos;t read that URL
+      </h2>
+      <p style={{ color: "#6b6660", marginBottom: 12, wordBreak: "break-all" }}>
+        <span style={{ color: "#a39990" }}>URL:</span> {query}
+      </p>
+      <p style={{ color: "#6b6660" }}>{error}</p>
     </div>
   );
 }
