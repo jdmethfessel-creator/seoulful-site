@@ -89,9 +89,9 @@ export default function Home() {
           }}
           className="text-5xl sm:text-7xl md:text-8xl"
         >
-          Your $400 routine
+          Better ingredients, cleaner formula,
           <br />
-          <span style={{ color: PINK }}>for $89</span>
+          <span style={{ color: PINK }}>a fraction of the price.</span>
         </h1>
 
         <p
