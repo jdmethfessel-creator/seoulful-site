@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 // cause of a silent failure for this endpoint, so bump it explicitly.
 export const maxDuration = 60;
 
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-5";
 const MAX_TOKENS = 2000;
 const AFFILIATE_TAG = "seoulful-20";
 
