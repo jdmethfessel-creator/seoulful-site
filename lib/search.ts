@@ -116,16 +116,18 @@ Respond with ONLY a valid JSON object — no markdown, no preamble, no commentar
     "key_actives": "<comma-separated actives in the Korean product>",
     "amazon_asin": "<10-char Amazon ASIN for this product, or empty string if you don't confidently know it>",
     "sephora_url": "",
-    "yesstyle_url": "https://www.yesstyle.com/en/search.html?keyword=<SHORT>"
+    "yesstyle_url": "https://www.yesstyle.com/en/list.html?q=<BRAND>+<CATEGORY>"
   }
 }
 
 For amazon_asin: return the product's 10-character Amazon Standard Identification Number (ASIN) if you confidently know it (e.g., "B07W6BG87X"). Do NOT guess. If you are not sure, return an empty string and we will fall back to an Amazon search URL.
 
-For yesstyle_url specifically: the <SHORT> keyword must be ONLY the Korean brand name. No product name words. Just the brand. Long keywords cause YesStyle URL errors and brand-only search returns the cleanest catalog page. Replace spaces inside the brand with + signs. Examples:
-  - "Some By Mi AHA-BHA-PHA 30 Days Miracle Toner" → keyword=Some+By+Mi
-  - "Beauty of Joseon Glow Serum Propolis Niacinamide" → keyword=Beauty+of+Joseon
-  - "COSRX Advanced Snail 96 Mucin Power Essence" → keyword=COSRX
+For yesstyle_url specifically: the path is /en/list.html and the q= value must be the Korean brand name + a single category word (cream, serum, toner, cleanser, sunscreen, essence, mask, exfoliant, eye+cream, moisturizer). No full product names. Replace spaces inside the brand with + signs; join brand and category with a + sign. Full URL pattern: https://www.yesstyle.com/en/list.html?q=<brand>+<category>. Examples:
+  - "Some By Mi AHA-BHA-PHA 30 Days Miracle Toner" → q=Some+By+Mi+toner
+  - "Beauty of Joseon Glow Serum Propolis Niacinamide" → q=Beauty+of+Joseon+serum
+  - "COSRX Advanced Snail 96 Mucin Power Essence" → q=COSRX+essence
+  - "Laneige Water Bank Blue Hyaluronic Cream" → q=Laneige+cream
+  - "Beauty of Joseon Relief Sun Rice + Probiotics" → q=Beauty+of+Joseon+sunscreen
 
 For the Amazon fallback search: when no ASIN is available, our code builds the URL automatically from the Korean brand + product name (brand first), so make sure both the brand and name fields are populated correctly — the keyword is generated as "{brand} {name}".`;
 
