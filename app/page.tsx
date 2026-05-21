@@ -27,16 +27,16 @@ const tickerItems = [
 
 const valueProps = [
   {
-    title: "Ingredient Truth",
-    body: "The EU bans 1,400+ ingredients from skincare. The US bans 11. Same brand, different formula.",
+    title: "Cleaner by Law",
+    body: "The EU bans 1,400+ ingredients from skincare. The US bans 11. Korean brands formulate to the stricter standard. Your Western product doesn't.",
   },
   {
-    title: "Korean Science",
-    body: "Korea has more R&D per capita in cosmetics than any country on earth. The actives end up there first.",
+    title: "Better Formulated",
+    body: "Korea has more cosmetic R&D per capita than any country on earth. K-beauty brands compete on formula because their consumers read ingredient labels. Western brands compete on marketing.",
   },
   {
-    title: "Half the Price",
-    body: "Same actives, packaged sensibly. You're paying for a Nordstrom counter, not better chemistry.",
+    title: "A Fraction of the Price",
+    body: "You're not paying for better chemistry. You're paying for a Sephora counter, a celebrity campaign, and a box. kDupe finds what actually works.",
   },
 ];
 
