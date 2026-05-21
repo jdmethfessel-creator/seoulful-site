@@ -89,9 +89,9 @@ export default function Home() {
           }}
           className="text-5xl sm:text-7xl md:text-8xl"
         >
-          Your $400 routine.
+          Your $400 routine
           <br />
-          <span style={{ color: PINK }}>For $89.</span>
+          <span style={{ color: PINK }}>for $89</span>
         </h1>
 
         <p
@@ -102,8 +102,8 @@ export default function Home() {
             lineHeight: 1.55,
           }}
         >
-          Paste any skincare product and instantly find the K-beauty alternative
-          with the same active ingredients — at a fraction of the price.
+          Paste any product and find the K-beauty alternative that works just
+          as hard, with cleaner ingredients and a lower price tag.
         </p>
 
         <form action="/search" className="mt-10 flex flex-col sm:flex-row gap-3">
