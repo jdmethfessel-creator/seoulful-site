@@ -91,7 +91,7 @@ export default function Home() {
         >
           Better ingredients, cleaner formula,
           <br />
-          <span style={{ color: PINK }}>a fraction of the price.</span>
+          <span style={{ color: PINK }}>lower price.</span>
         </h1>
 
         <p
