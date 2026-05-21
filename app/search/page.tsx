@@ -349,9 +349,9 @@ function KoreanCard({
 }) {
   const actives = splitList(alt.key_actives);
   const altPrice = num(alt.price);
-  const annualSavings =
+  const savings =
     westernPrice != null && altPrice != null
-      ? Math.max(0, Math.round((westernPrice - altPrice) * 12))
+      ? Math.max(0, Math.round(westernPrice - altPrice))
       : null;
 
   return (
@@ -429,7 +429,7 @@ function KoreanCard({
         <BuyButton href={alt.yesstyle_url} label="Buy on YesStyle" />
       </div>
 
-      {annualSavings != null && annualSavings > 0 && (
+      {savings != null && savings > 0 && (
         <div
           className="mt-6 pt-4 flex items-center justify-between"
           style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
@@ -442,13 +442,13 @@ function KoreanCard({
               letterSpacing: "0.18em",
             }}
           >
-            Annual savings
+            You save
           </span>
           <span
             className="text-xl"
             style={{ color: GREEN, ...syneDisplay, fontWeight: 700 }}
           >
-            ${annualSavings.toLocaleString()}
+            ${savings.toLocaleString()}
           </span>
         </div>
       )}
@@ -464,9 +464,9 @@ function AltCard({
   westernPrice: number | null;
 }) {
   const altPrice = num(alt.price);
-  const annualSavings =
+  const savings =
     westernPrice != null && altPrice != null
-      ? Math.max(0, Math.round((westernPrice - altPrice) * 12))
+      ? Math.max(0, Math.round(westernPrice - altPrice))
       : null;
 
   return (
@@ -505,7 +505,7 @@ function AltCard({
           )}
         </div>
       </div>
-      {annualSavings != null && annualSavings > 0 && (
+      {savings != null && savings > 0 && (
         <div
           className="mt-3 pt-3 flex items-center justify-between text-xs"
           style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
@@ -518,10 +518,10 @@ function AltCard({
               textTransform: "uppercase",
             }}
           >
-            Annual savings
+            You save
           </span>
           <span style={{ color: GREEN, fontWeight: 600 }}>
-            ${annualSavings.toLocaleString()}
+            ${savings.toLocaleString()}
           </span>
         </div>
       )}
