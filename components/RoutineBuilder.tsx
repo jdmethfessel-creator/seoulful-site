@@ -296,24 +296,45 @@ function LockedTeaser({ onUnlock }: { onUnlock: () => void }) {
 }
 
 function Conflicts({ items }: { items: string[] }) {
-  if (!items || items.length === 0) return null;
+  const real = (items ?? []).filter((s) => s && s.trim().length > 0);
+
+  if (real.length === 0) {
+    return (
+      <div
+        className="rounded-lg px-4 py-3 mb-6 text-sm flex gap-3 items-start"
+        style={{
+          background: "rgba(0, 230, 118, 0.08)",
+          border: `1px solid ${GREEN}66`,
+          color: GREEN,
+          fontWeight: 400,
+        }}
+      >
+        <span style={{ fontWeight: 700 }}>✓</span>
+        <span>
+          Your routine ingredients are compatible. No conflicts detected.
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-2 mb-6">
-      {items.map((c, i) => (
-        <div
-          key={i}
-          className="rounded-lg px-4 py-3 text-sm flex gap-3"
-          style={{
-            background: "rgba(255, 183, 77, 0.08)",
-            border: `1px solid ${AMBER}40`,
-            color: AMBER,
-            fontWeight: 400,
-          }}
-        >
-          <span style={{ fontWeight: 700 }}>⚠</span>
-          <span>{c}</span>
-        </div>
-      ))}
+    <div
+      className="rounded-lg px-4 py-3 mb-6 text-sm flex gap-3 items-start"
+      style={{
+        background: "rgba(255, 183, 77, 0.08)",
+        border: `1px solid ${AMBER}66`,
+        color: AMBER,
+        fontWeight: 400,
+      }}
+    >
+      <span style={{ fontWeight: 700 }}>⚠</span>
+      <div className="space-y-1.5">
+        {real.map((c, i) => (
+          <p key={i} style={{ lineHeight: 1.5 }}>
+            {c}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

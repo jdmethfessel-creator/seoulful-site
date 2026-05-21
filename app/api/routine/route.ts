@@ -167,12 +167,20 @@ Build them a complete K-beauty morning and evening routine by finding the best K
 
 Requirements:
 - Match each Western product to a Korean alternative in the same category with the same key actives
-- Check for ingredient conflicts across the full routine (e.g. do not recommend retinol and AHA in the same routine step, flag vitamin C and niacinamide interactions)
+- Check for ingredient conflicts across the full routine (e.g. retinol + AHA on the same night, vitamin C + niacinamide layered together)
 - Do not repeat the same active ingredient excessively across multiple products
 - Fill any gaps in their routine (if they have no SPF, recommend one)
 - For each Korean alternative include: name, brand, price, key actives, match score, amazon_url with tag=${AFFILIATE_TAG}, yesstyle_url using list.html?q=brand+category format
 - Calculate total cost of their current routine vs total cost of K-beauty routine
 - Calculate annual savings ((current_total - kdupe_total) * 12)
+
+CONFLICTS_DETECTED — VERY IMPORTANT:
+- Write each entry in plain English a non-chemist can understand in 3 seconds. No chemistry jargon, no pH, no mechanisms, no scientific terms like "oxidative degradation" or "barrier disruption".
+- Start with "Heads up:" and tell the user (a) what shouldn't be used together and (b) how this routine handles it.
+- Good example: "Heads up: your retinol and AHA serum shouldn't be used on the same night. We've separated them into different days in your K-beauty routine."
+- Good example: "Heads up: vitamin C and niacinamide can cancel each other out when layered. We've put vitamin C in your morning routine and niacinamide in the evening."
+- Bad example (DO NOT WRITE): "L-ascorbic acid pH 3.5 destabilizes nicotinamide via oxidative degradation pathways."
+- If there are NO real conflicts, return an empty array []. Do NOT add a placeholder like "no conflicts" — just return [].
 
 Return ONLY valid JSON in this exact shape — no markdown, no preamble, no commentary:
 {
