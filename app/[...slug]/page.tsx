@@ -20,19 +20,29 @@ export default async function UrlPrefixPage(
 function extractProductName(slug: string[] | undefined): string | null {
   if (!slug || slug.length === 0) return null;
 
-  // First segment must look like a domain (contains a dot). Strip an
-  // optional "www." prefix; anything else without a dot isn't a URL.
-  const first = slug[0].toLowerCase().replace(/^www\./, "");
-  if (!first.includes(".")) return null;
+  // Drop empty segments (the "//" in https:// produces one) and strip a
+  // leading "http:" / "https:" so a pasted full URL is normalized down
+  // to [host, ...path].
+  let parts = slug.filter((s) => s && s.length > 0);
+  if (parts.length > 0 && /^https?:$/i.test(parts[0])) {
+    parts = parts.slice(1);
+  }
+  if (parts.length === 0) return null;
 
-  // Need at least one path segment after the domain to have a product.
-  if (slug.length < 2) return null;
+  // Normalize the host: lowercase and strip an optional "www." prefix.
+  parts[0] = parts[0].toLowerCase().replace(/^www\./, "");
+
+  // First segment must look like a domain (contains a dot).
+  if (!parts[0].includes(".")) return null;
+
+  // Need at least one path segment after the domain.
+  if (parts.length < 2) return null;
 
   // Take the last non-empty path segment as the product candidate.
   let last = "";
-  for (let i = slug.length - 1; i >= 1; i--) {
-    if (slug[i] && slug[i].trim()) {
-      last = slug[i];
+  for (let i = parts.length - 1; i >= 1; i--) {
+    if (parts[i] && parts[i].trim()) {
+      last = parts[i];
       break;
     }
   }
