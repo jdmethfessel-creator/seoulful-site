@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BookmarkletDragButton from "@/components/BookmarkletDragButton";
 
 const ROSE = "#c8535a";
 const CREAM = "#fdf8f4";
@@ -120,6 +121,27 @@ export default function Home() {
               </li>
             ))}
           </ul>
+        </div>
+
+        <div className="mt-12 sm:mt-14 text-center">
+          <h2
+            className="text-lg sm:text-xl mb-1"
+            style={{
+              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontWeight: 500,
+              color: "#3d3a36",
+            }}
+          >
+            Find K-beauty dupes while you shop
+          </h2>
+          <p
+            className="text-sm mb-4"
+            style={{ color: "#6b6660", lineHeight: 1.6 }}
+          >
+            Drag this to your bookmarks bar, then click it on any Sephora,
+            Ulta, or Kiehl&apos;s page.
+          </p>
+          <BookmarkletDragButton size="sm" />
         </div>
       </section>
 

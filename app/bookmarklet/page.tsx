@@ -1,24 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { BOOKMARKLET_HREF, BOOKMARKLET_READABLE } from "@/lib/bookmarklet";
+import BookmarkletDragButton from "@/components/BookmarkletDragButton";
 
 const ROSE = "#c8535a";
 const CREAM = "#fdf8f4";
 
 export default function BookmarkletPage() {
   const [copied, setCopied] = useState(false);
-  const dragLinkRef = useRef<HTMLAnchorElement>(null);
-
-  // React 19 sanitizes javascript: URLs out of href props. Setting the
-  // attribute imperatively after mount bypasses that, so dragging the
-  // anchor to the bookmarks bar captures the real bookmarklet code.
-  useEffect(() => {
-    if (dragLinkRef.current) {
-      dragLinkRef.current.setAttribute("href", BOOKMARKLET_HREF);
-    }
-  }, []);
 
   async function copyCode() {
     try {
@@ -79,26 +70,7 @@ export default function BookmarkletPage() {
           >
             Drag this button to your bookmarks bar
           </div>
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a
-            ref={dragLinkRef}
-            href="#"
-            onClick={(e) => {
-              // Prevent the bookmarklet from firing if a user clicks the
-              // drag-target while on this page — we want them to install it,
-              // not run it here.
-              e.preventDefault();
-            }}
-            draggable
-            className="inline-block rounded-lg px-6 py-3 text-base font-semibold cursor-grab select-none"
-            style={{
-              background: ROSE,
-              color: "#fff",
-              textDecoration: "none",
-            }}
-          >
-            ★ Save to Seoulful
-          </a>
+          <BookmarkletDragButton />
           <div
             className="mt-4 text-sm"
             style={{ color: "#6b6660" }}
