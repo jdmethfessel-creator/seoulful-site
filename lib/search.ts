@@ -122,10 +122,10 @@ Respond with ONLY a valid JSON object — no markdown, no preamble, no commentar
 
 For amazon_asin: return the product's 10-character Amazon Standard Identification Number (ASIN) if you confidently know it (e.g., "B07W6BG87X"). Do NOT guess. If you are not sure, return an empty string and we will fall back to an Amazon search URL.
 
-For yesstyle_url specifically: the <SHORT> keyword must be ONLY the Korean brand name + the first three words of the product name. Full long product names cause YesStyle URL errors. Replace spaces with + signs. Examples:
-  - "Some By Mi AHA-BHA-PHA 30 Days Miracle Toner" → keyword=Some+By+Mi+AHA-BHA-PHA+30+Days
-  - "Beauty of Joseon Glow Serum Propolis Niacinamide" → keyword=Beauty+of+Joseon+Glow+Serum+Propolis
-  - "COSRX Advanced Snail 96 Mucin Power Essence" → keyword=COSRX+Advanced+Snail+96
+For yesstyle_url specifically: the <SHORT> keyword must be ONLY the Korean brand name. No product name words. Just the brand. Long keywords cause YesStyle URL errors and brand-only search returns the cleanest catalog page. Replace spaces inside the brand with + signs. Examples:
+  - "Some By Mi AHA-BHA-PHA 30 Days Miracle Toner" → keyword=Some+By+Mi
+  - "Beauty of Joseon Glow Serum Propolis Niacinamide" → keyword=Beauty+of+Joseon
+  - "COSRX Advanced Snail 96 Mucin Power Essence" → keyword=COSRX
 
 For the Amazon fallback search: when no ASIN is available, our code builds the URL automatically from the Korean brand + product name (brand first), so make sure both the brand and name fields are populated correctly — the keyword is generated as "{brand} {name}".`;
 
