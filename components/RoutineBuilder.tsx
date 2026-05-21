@@ -40,12 +40,9 @@ export default function RoutineBuilder() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const products = input
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (products.length < 1) {
-      setError("Add at least one product to build a routine.");
+    const routineInput = input.trim();
+    if (!routineInput) {
+      setError("List your products or describe your routine to get started.");
       return;
     }
     setError(null);
@@ -56,7 +53,7 @@ export default function RoutineBuilder() {
       const res = await fetch("/api/routine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products }),
+        body: JSON.stringify({ routineInput }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -108,9 +105,10 @@ export default function RoutineBuilder() {
           className="mt-5 text-base sm:text-lg max-w-2xl mx-auto"
           style={{ color: MUTED, fontWeight: 300, lineHeight: 1.55 }}
         >
-          Drop in 3–5 Western products you currently use. We&apos;ll build a
-          full K-beauty morning and evening routine, flag any ingredient
-          conflicts, and show you what you&apos;ll save.
+          List the Western products you use — or just describe your routine
+          in plain English. We&apos;ll build a full K-beauty morning and
+          evening routine, flag any ingredient conflicts, and show you what
+          you&apos;ll save.
         </p>
       </div>
 
@@ -123,13 +121,19 @@ export default function RoutineBuilder() {
             fontWeight: 500,
           }}
         >
-          Your current products — one per line
+          Your current routine
         </label>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          rows={6}
-          placeholder={`SkinCeuticals C E Ferulic\nDrunk Elephant B-Hydra\nLa Mer Moisturizer\nKiehl's Avocado Eye Cream`}
+          rows={8}
+          placeholder={`List your products one per line, or just describe your routine in your own words.
+
+Examples:
+- SkinCeuticals C E Ferulic
+- Drunk Elephant moisturizer
+- I use a vitamin C serum in the morning and a retinol at night
+- I spend about $300/month on skincare and use mostly Tatcha and La Mer`}
           className="w-full rounded-lg px-4 py-3 text-base outline-none"
           style={{
             background: CARD,
@@ -138,7 +142,7 @@ export default function RoutineBuilder() {
             fontWeight: 300,
             fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
             resize: "vertical",
-            minHeight: 160,
+            minHeight: 220,
           }}
         />
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">

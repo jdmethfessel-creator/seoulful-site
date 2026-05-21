@@ -16,28 +16,34 @@ const MAX_TOKENS = 2000;
 const AFFILIATE_TAG = "seoulful-20";
 
 export async function POST(req: NextRequest) {
-  let products: string[] = [];
+  let routineInput = "";
   try {
     const body = await req.json();
-    const raw = Array.isArray(body?.products) ? body.products : [];
-    products = raw
-      .map((p: unknown) => (typeof p === "string" ? p.trim() : ""))
-      .filter((p: string) => p.length > 0);
+    if (typeof body?.routineInput === "string") {
+      routineInput = body.routineInput.trim();
+    } else if (Array.isArray(body?.products)) {
+      // Legacy shape: array of product names. Join into a list-style
+      // string so the prompt sees the same kind of input either way.
+      routineInput = body.products
+        .map((p: unknown) => (typeof p === "string" ? p.trim() : ""))
+        .filter((p: string) => p.length > 0)
+        .join("\n");
+    }
   } catch (err) {
     console.error("[routine] body parse failed:", err);
     return NextResponse.json(
-      { error: "Invalid JSON body. Expected { products: string[] }." },
+      { error: "Invalid JSON body. Expected { routineInput: string }." },
       { status: 400 }
     );
   }
 
-  if (products.length < 1) {
+  if (!routineInput) {
     return NextResponse.json(
-      { error: "Add at least one product to build a routine." },
+      { error: "List your products or describe your routine to get started." },
       { status: 400 }
     );
   }
-  if (products.length > 12) products = products.slice(0, 12);
+  if (routineInput.length > 4000) routineInput = routineInput.slice(0, 4000);
 
   const key = process.env.ANTHROPIC_API_KEY;
   console.log("[routine] env check:", {
@@ -45,7 +51,7 @@ export async function POST(req: NextRequest) {
     keyLength: key?.length ?? 0,
     keyIsPlaceholder: key === "your_anthropic_key_here",
     model: MODEL,
-    productCount: products.length,
+    inputLength: routineInput.length,
   });
 
   if (!key || key === "your_anthropic_key_here") {
@@ -58,7 +64,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const prompt = buildPrompt(products);
+  const prompt = buildPrompt(routineInput);
 
   let raw: string;
   try {
@@ -158,10 +164,21 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ routine });
 }
 
-function buildPrompt(products: string[]): string {
-  return `You are a K-beauty expert and cosmetic chemist. The user currently uses these Western skincare products: ${JSON.stringify(
-    products
-  )}.
+function buildPrompt(routineInput: string): string {
+  return `You are a K-beauty expert and cosmetic chemist. The user has described their current Western skincare routine below.
+
+INPUT FORMAT — the input may be any of:
+- A list of product names, one per line (e.g. "SkinCeuticals C E Ferulic")
+- A natural-language description (e.g. "I use a vitamin C serum in the morning and a retinol at night")
+- A mix of both — some lines are products, some are sentences
+- Notes about budget, brands they like, or how they apply things
+
+Read the whole input holistically. Extract the products the user actually uses (or implies they use), plus any context about morning vs evening, budget, and brands they prefer. If a line is vague ("a vitamin C serum"), pick a plausible Western product in that category at a typical price point as their stand-in. Do NOT ask follow-up questions — work with what you have.
+
+User input:
+"""
+${routineInput}
+"""
 
 Build them a complete K-beauty morning and evening routine by finding the best Korean alternative for each product.
 
