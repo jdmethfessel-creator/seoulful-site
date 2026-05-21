@@ -376,7 +376,7 @@ export async function searchFromUrl(url: string): Promise<ScrapeResult> {
     return {
       ok: false,
       error:
-        "Couldn't find a Korean alternative for that product. Either the AI fallback is offline or no close match exists yet.",
+        "Couldn't find a K-beauty dupe for that product. Either the AI fallback is offline or no close match exists yet.",
     };
   }
 

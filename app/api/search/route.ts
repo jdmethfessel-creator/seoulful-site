@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       {
         error: "No match found",
         message:
-          "We couldn't find a Korean alternative for this product. Either the product isn't in our database yet or our AI fallback is offline.",
+          "We couldn't find a K-beauty dupe for this product. Either the product isn't in our database yet or our AI fallback is offline.",
       },
       { status: 404 }
     );

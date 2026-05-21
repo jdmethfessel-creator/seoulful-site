@@ -1,38 +1,39 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Barlow } from "next/font/google";
+import { Syne, DM_Sans } from "next/font/google";
 import "./globals.css";
 
-const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
+const syne = Syne({
+  variable: "--font-syne",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600", "700", "800"],
   display: "swap",
 });
 
-const barlow = Barlow({
-  variable: "--font-barlow",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["300", "400", "500", "700"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Seoulful — Where K-beauty meets ingredient science",
+  title: "kDupe — K-beauty intelligence. Free forever.",
   description:
-    "Find the Korean skincare alternative to any Western product. Better ingredients, half the price.",
+    "Paste any skincare product and instantly find the K-beauty alternative with the same active ingredients — at a fraction of the price.",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${barlow.variable}`}>
+    <html lang="en" className={`${syne.variable} ${dmSans.variable}`}>
       <body
         className="min-h-screen antialiased"
         style={{
-          fontFamily: "var(--font-barlow), system-ui, sans-serif",
-          background: "#fdf8f4",
-          color: "#1a1a1a",
+          fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+          fontWeight: 300,
+          background: "#0a0a0a",
+          color: "#f5f0eb",
         }}
       >
         {children}

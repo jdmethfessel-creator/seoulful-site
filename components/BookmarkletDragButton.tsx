@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { BOOKMARKLET_HREF } from "@/lib/bookmarklet";
 
-const ROSE = "#c8535a";
+const PINK = "#ff3366";
 
 type Props = {
   label?: string;
@@ -11,7 +11,7 @@ type Props = {
 };
 
 export default function BookmarkletDragButton({
-  label = "★ Save to Seoulful",
+  label = "★ Save to kDupe",
   size = "md",
 }: Props) {
   const linkRef = useRef<HTMLAnchorElement>(null);
@@ -39,8 +39,15 @@ export default function BookmarkletDragButton({
         e.preventDefault();
       }}
       draggable
-      className={`inline-block rounded-lg font-semibold cursor-grab select-none ${padding}`}
-      style={{ background: ROSE, color: "#fff", textDecoration: "none" }}
+      className={`inline-block rounded-lg cursor-grab select-none ${padding}`}
+      style={{
+        background: PINK,
+        color: "#fff",
+        textDecoration: "none",
+        fontFamily: "var(--font-syne), system-ui, sans-serif",
+        fontWeight: 700,
+        letterSpacing: "-0.01em",
+      }}
     >
       {label}
     </a>
