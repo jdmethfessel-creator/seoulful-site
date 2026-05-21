@@ -6,6 +6,10 @@ import type { Routine } from "@/lib/routine";
 // with cross-step ingredient conflict checking and a savings summary.
 
 export const runtime = "nodejs";
+// Sonnet-4 with max_tokens=2000 frequently runs 15–25s. The default
+// serverless function timeout (10s on Vercel Hobby) is the most common
+// cause of a silent failure for this endpoint, so bump it explicitly.
+export const maxDuration = 60;
 
 const MODEL = "claude-sonnet-4-20250514";
 const MAX_TOKENS = 2000;
@@ -19,7 +23,8 @@ export async function POST(req: NextRequest) {
     products = raw
       .map((p: unknown) => (typeof p === "string" ? p.trim() : ""))
       .filter((p: string) => p.length > 0);
-  } catch {
+  } catch (err) {
+    console.error("[routine] body parse failed:", err);
     return NextResponse.json(
       { error: "Invalid JSON body. Expected { products: string[] }." },
       { status: 400 }
@@ -32,16 +37,22 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (products.length > 12) {
-    products = products.slice(0, 12);
-  }
+  if (products.length > 12) products = products.slice(0, 12);
 
   const key = process.env.ANTHROPIC_API_KEY;
+  console.log("[routine] env check:", {
+    keyPresent: !!key,
+    keyLength: key?.length ?? 0,
+    keyIsPlaceholder: key === "your_anthropic_key_here",
+    model: MODEL,
+    productCount: products.length,
+  });
+
   if (!key || key === "your_anthropic_key_here") {
     return NextResponse.json(
       {
         error:
-          "Routine builder is offline — the AI service isn't configured yet.",
+          "Routine builder is offline — ANTHROPIC_API_KEY isn't set in this environment.",
       },
       { status: 503 }
     );
@@ -51,6 +62,7 @@ export async function POST(req: NextRequest) {
 
   let raw: string;
   try {
+    const t0 = Date.now();
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -64,16 +76,45 @@ export async function POST(req: NextRequest) {
         messages: [{ role: "user", content: prompt }],
       }),
     });
+    const elapsed = Date.now() - t0;
+
     if (!res.ok) {
       const text = await res.text();
-      console.error("[routine] anthropic non-2xx:", res.status, text);
-      return NextResponse.json(
-        { error: "AI service returned an error. Try again in a moment." },
-        { status: 502 }
-      );
+      console.error("[routine] anthropic non-2xx:", {
+        status: res.status,
+        statusText: res.statusText,
+        elapsedMs: elapsed,
+        model: MODEL,
+        body: text.slice(0, 2000),
+      });
+      // Surface a sanitized hint so callers can see what went wrong
+      // without needing access to the server logs.
+      let hint = `AI service returned ${res.status}.`;
+      try {
+        const parsed = JSON.parse(text);
+        const apiMsg =
+          parsed?.error?.message ||
+          parsed?.message ||
+          parsed?.error?.type;
+        if (typeof apiMsg === "string" && apiMsg.length < 240) {
+          hint = `AI service returned ${res.status}: ${apiMsg}`;
+        }
+      } catch {
+        // body wasn't JSON — keep generic hint
+      }
+      return NextResponse.json({ error: hint }, { status: 502 });
     }
+
     const data = await res.json();
+    console.log("[routine] anthropic ok:", {
+      elapsedMs: elapsed,
+      stopReason: data?.stop_reason,
+      usage: data?.usage,
+      contentLen: Array.isArray(data?.content) ? data.content.length : 0,
+    });
+
     if (!Array.isArray(data.content) || data.content[0]?.type !== "text") {
+      console.error("[routine] unexpected response shape:", data);
       return NextResponse.json(
         { error: "AI service returned an unexpected response shape." },
         { status: 502 }
@@ -81,16 +122,32 @@ export async function POST(req: NextRequest) {
     }
     raw = data.content[0].text as string;
   } catch (err) {
-    console.error("[routine] fetch failed:", err);
+    console.error("[routine] fetch failed:", {
+      name: err instanceof Error ? err.name : "unknown",
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      cause:
+        err instanceof Error && "cause" in err
+          ? (err as { cause?: unknown }).cause
+          : undefined,
+    });
     return NextResponse.json(
-      { error: "Couldn't reach the AI service. Try again in a moment." },
+      {
+        error:
+          err instanceof Error
+            ? `Couldn't reach the AI service: ${err.message}`
+            : "Couldn't reach the AI service.",
+      },
       { status: 502 }
     );
   }
 
   const parsed = parseRoutineJson(raw);
   if (!parsed) {
-    console.error("[routine] failed to parse routine JSON. raw:", raw);
+    console.error(
+      "[routine] failed to parse routine JSON. raw output (first 2k):",
+      raw.slice(0, 2000)
+    );
     return NextResponse.json(
       { error: "AI returned a routine we couldn't parse. Try again." },
       { status: 502 }
@@ -142,31 +199,36 @@ Return ONLY valid JSON in this exact shape — no markdown, no preamble, no comm
 }`;
 }
 
-// Robust extraction: handle Claude wrapping JSON in code fences or
-// emitting prose around it. We isolate the first {...} block.
-function parseRoutineJson(text: string): unknown {
-  const cleaned = text
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
-
-  const tryParse = (s: string): unknown | null => {
-    try {
-      return JSON.parse(s);
-    } catch {
-      return null;
-    }
-  };
-
-  let parsed = tryParse(cleaned);
-  if (parsed) return parsed;
-
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start !== -1 && end > start) {
-    parsed = tryParse(cleaned.slice(start, end + 1));
-    if (parsed) return parsed;
+function tryParse(s: string): unknown | null {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
   }
+}
+
+// Try several strategies in order: direct parse, markdown code fence
+// extraction (anywhere in the string), then the largest {...} block.
+function parseRoutineJson(text: string): unknown {
+  if (!text) return null;
+  const trimmed = text.trim();
+
+  const direct = tryParse(trimmed);
+  if (direct) return direct;
+
+  const fence = trimmed.match(/```(?:json|JSON)?\s*([\s\S]*?)```/);
+  if (fence && fence[1]) {
+    const fenced = tryParse(fence[1].trim());
+    if (fenced) return fenced;
+  }
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start !== -1 && end > start) {
+    const block = tryParse(trimmed.slice(start, end + 1));
+    if (block) return block;
+  }
+
   return null;
 }
 
