@@ -52,8 +52,9 @@ const PREMIUM_FEATURES = [
 ];
 
 export function PremiumProvider({ children }: { children: ReactNode }) {
-  // Stub: always logged-out, not premium. Swap with real Supabase session.
-  const [state] = useState<AuthState>({ user: null, isPremium: false });
+  // Stub: TEMP — forced premium for end-to-end routine testing without
+  // Stripe. Flip isPremium back to false once Supabase/Stripe land.
+  const [state] = useState<AuthState>({ user: null, isPremium: true });
   const [open, setOpen] = useState(false);
 
   const openPremiumModal = useCallback(() => setOpen(true), []);
