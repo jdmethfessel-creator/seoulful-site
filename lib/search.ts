@@ -80,7 +80,17 @@ async function aiFallback(query: string): Promise<SearchResult | null> {
 
 The user searched for: "${query}"
 
-Identify the most likely Western skincare product they're referring to, then recommend the single best Korean alternative that has matching key actives at a lower price.
+Identify the most likely Western skincare product they're referring to, then recommend the single best Korean alternative.
+
+ACTIVE INGREDIENT MATCHING — HARD REQUIREMENT:
+- The Korean alternative MUST share at least 3 of the same key active ingredients as the Western product. Examples of "key actives" include: niacinamide, vitamin C / ascorbic acid / ascorbyl glucoside, retinol / retinal / retinaldehyde, hyaluronic acid, peptides (matrixyl, copper peptides, etc), AHAs (glycolic, lactic, mandelic), BHA (salicylic acid), PHAs (gluconolactone), centella asiatica / madecassoside, snail mucin, propolis, ceramides, panthenol, azelaic acid, tranexamic acid, alpha-arbutin, beta-glucan, squalane.
+- If you cannot find a Korean product that shares at least 3 actives, pick a different Korean product. Do NOT recommend a product that only shares 1-2 actives just because the category matches.
+- match_score is calculated ONLY from shared key actives, not overall ingredient list similarity, not category similarity, not texture:
+    * Score = round( (shared_actives / total_western_actives) * 100 )
+    * Floor at 60 only when all 3+ required actives are present.
+    * Cap at 100 (perfect overlap on every active).
+    * A product with the same actives in higher concentration scores higher than one with overlapping but weaker formulations.
+- The Korean product's key_actives field MUST list the actives that are actually present in that product (verify against your knowledge of the formulation). Do not pad the list to inflate the match.
 
 Respond with ONLY a valid JSON object — no markdown, no preamble, no commentary. Use this exact shape:
 
