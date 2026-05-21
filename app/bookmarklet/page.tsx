@@ -51,8 +51,7 @@ export default function BookmarkletPage() {
           style={{ color: "#6b6660", lineHeight: 1.6 }}
         >
           One click on any skincare product page and we&apos;ll open a Seoulful
-          tab with the Korean alternative. Works on Sephora, Ulta, Kiehl&apos;s,
-          Drunk Elephant, Amazon, and most retailer sites.
+          tab with the Korean alternative.
         </p>
 
         {/* Drag target */}
@@ -97,7 +96,7 @@ export default function BookmarkletPage() {
             {[
               "Make sure your browser's bookmarks bar is visible (View → Show Bookmarks Bar, or ⌘+Shift+B).",
               "Drag the orange ★ Save to Seoulful button above onto the bookmarks bar.",
-              "Browse to any product page on Sephora, Ulta, Kiehl's, etc. Click the bookmark and Seoulful opens the Korean alternative in a new tab.",
+              "Browse to any skincare product page. Click the bookmark and Seoulful opens the Korean alternative in a new tab.",
             ].map((step, i) => (
               <li
                 key={i}

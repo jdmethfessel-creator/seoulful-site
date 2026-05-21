@@ -76,7 +76,7 @@ export default function Home() {
             type="text"
             name="q"
             required
-            placeholder="Paste a Sephora / Ulta / Kiehl's URL, or search any product..."
+            placeholder="Paste any skincare product URL, or search by name..."
             autoComplete="off"
             className="flex-1 rounded-lg px-5 py-4 text-base outline-none transition-colors"
             style={{
@@ -138,8 +138,8 @@ export default function Home() {
             className="text-sm mb-4"
             style={{ color: "#6b6660", lineHeight: 1.6 }}
           >
-            Drag this to your bookmarks bar, then click it on any Sephora,
-            Ulta, or Kiehl&apos;s page.
+            Drag this to your bookmarks bar, then click it on any skincare
+            product page.
           </p>
           <BookmarkletDragButton size="sm" />
         </div>
