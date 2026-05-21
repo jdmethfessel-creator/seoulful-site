@@ -29,7 +29,24 @@ const valueProps = [
 export default function Home() {
   return (
     <main style={{ background: CREAM }}>
-      <section className="px-6 pt-16 pb-12 sm:pt-24 sm:pb-16 max-w-3xl mx-auto text-center">
+      <nav
+        className="flex justify-end px-6 pt-5"
+        style={{ maxWidth: 1280, margin: "0 auto" }}
+      >
+        <Link
+          href="/bookmarklet"
+          className="text-sm"
+          style={{
+            color: "#6b6660",
+            textDecoration: "none",
+            letterSpacing: "0.02em",
+          }}
+        >
+          Browser bookmarklet →
+        </Link>
+      </nav>
+
+      <section className="px-6 pt-10 pb-12 sm:pt-16 sm:pb-16 max-w-3xl mx-auto text-center">
         <h1
           style={{
             fontFamily: "var(--font-cormorant), Georgia, serif",
