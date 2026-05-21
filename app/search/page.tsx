@@ -76,7 +76,7 @@ export default async function SearchPage({
                 className="rounded-lg px-4 py-3 mb-6 text-sm"
                 style={{ background: "#fff5e9", border: `1px solid ${AMBER}40`, color: "#7a4d20" }}
               >
-                <strong>AI-generated match.</strong> We didn&apos;t have this one in our database, so we asked our K-beauty research agent. Double-check the ingredient list before buying.
+                <strong>Live match.</strong> Our K-beauty research agent found this in real time.
               </div>
             )}
 
