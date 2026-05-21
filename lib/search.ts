@@ -82,6 +82,11 @@ The user searched for: "${query}"
 
 Identify the most likely Western skincare product they're referring to, then recommend the single best Korean alternative.
 
+PRODUCT FORMAT — HARD REQUIREMENT:
+- The Korean alternative MUST be the same product category as the Western product. Category is one of: serum, moisturizer, cleanser, toner, sunscreen, eye cream, essence, exfoliant, mask.
+- A serum must match to a serum. A toner must match to a toner. Never match across categories even if actives overlap strongly.
+- If no Korean product exists in the same category with 3+ shared actives, pick the closest category-matched product with the highest active overlap and note the lower match score.
+
 ACTIVE INGREDIENT MATCHING — HARD REQUIREMENT:
 - The Korean alternative MUST share at least 3 of the same key active ingredients as the Western product. Examples of "key actives" include: niacinamide, vitamin C / ascorbic acid / ascorbyl glucoside, retinol / retinal / retinaldehyde, hyaluronic acid, peptides (matrixyl, copper peptides, etc), AHAs (glycolic, lactic, mandelic), BHA (salicylic acid), PHAs (gluconolactone), centella asiatica / madecassoside, snail mucin, propolis, ceramides, panthenol, azelaic acid, tranexamic acid, alpha-arbutin, beta-glucan, squalane.
 - If you cannot find a Korean product that shares at least 3 actives, pick a different Korean product. Do NOT recommend a product that only shares 1-2 actives just because the category matches.
