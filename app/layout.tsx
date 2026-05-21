@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Syne, DM_Sans } from "next/font/google";
 import "./globals.css";
+import { PremiumProvider } from "@/components/PremiumProvider";
+import SiteNav from "@/components/SiteNav";
 
 const syne = Syne({
   variable: "--font-syne",
@@ -36,7 +38,10 @@ export default function RootLayout({
           color: "#f5f0eb",
         }}
       >
-        {children}
+        <PremiumProvider>
+          <SiteNav />
+          {children}
+        </PremiumProvider>
       </body>
     </html>
   );

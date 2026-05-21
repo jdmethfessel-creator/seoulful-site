@@ -75,19 +75,6 @@ export default async function SearchPage({
       style={{ background: BG, color: TEXT }}
     >
       <div className="max-w-5xl mx-auto">
-        <Link
-          href="/"
-          className="inline-block text-2xl sm:text-3xl mb-6"
-          style={{
-            ...syneStyle,
-            fontWeight: 800,
-            color: TEXT,
-            textDecoration: "none",
-          }}
-        >
-          k<span style={{ color: PINK }}>Dupe</span>
-        </Link>
-
         <form action="/search" className="flex flex-col sm:flex-row gap-3 mb-10">
           <input
             type="text"

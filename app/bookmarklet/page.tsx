@@ -37,19 +37,6 @@ export default function BookmarkletPage() {
       style={{ background: BG, color: TEXT }}
     >
       <div className="max-w-2xl mx-auto">
-        <Link
-          href="/"
-          className="inline-block text-2xl sm:text-3xl mb-8"
-          style={{
-            ...syneStyle,
-            fontWeight: 800,
-            color: TEXT,
-            textDecoration: "none",
-          }}
-        >
-          k<span style={{ color: PINK }}>Dupe</span>
-        </Link>
-
         <h1
           className="text-4xl sm:text-5xl mb-3"
           style={{

@@ -43,41 +43,6 @@ const valueProps = [
 export default function Home() {
   return (
     <main style={{ background: BG, color: TEXT }}>
-      <nav
-        className="sticky top-0 z-30 flex items-center justify-between px-6 py-4"
-        style={{
-          background: "rgba(10, 10, 10, 0.7)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
-        }}
-      >
-        <Link
-          href="/"
-          className="text-2xl"
-          style={{
-            fontFamily: "var(--font-syne), system-ui, sans-serif",
-            fontWeight: 800,
-            color: TEXT,
-            textDecoration: "none",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          k<span style={{ color: PINK }}>Dupe</span>
-        </Link>
-        <Link
-          href="/bookmarklet"
-          className="hidden sm:inline text-sm"
-          style={{
-            color: MUTED,
-            textDecoration: "none",
-            letterSpacing: "0.02em",
-          }}
-        >
-          Browser bookmarklet →
-        </Link>
-      </nav>
-
       <section className="px-6 pt-14 pb-10 sm:pt-20 sm:pb-12 max-w-3xl mx-auto text-center">
         <h1
           style={{
@@ -167,6 +132,33 @@ export default function Home() {
               </li>
             ))}
           </ul>
+        </div>
+
+        <div className="mt-10 sm:mt-12">
+          <Link
+            href="/routine"
+            className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm"
+            style={{
+              background: "rgba(255, 51, 102, 0.08)",
+              border: `1px solid rgba(255, 51, 102, 0.35)`,
+              color: TEXT,
+              textDecoration: "none",
+              fontWeight: 400,
+            }}
+          >
+            <span style={{ color: MUTED, fontWeight: 300 }}>
+              Want your full routine rebuilt in K-beauty?
+            </span>
+            <span
+              style={{
+                color: PINK,
+                fontFamily: "var(--font-syne), system-ui, sans-serif",
+                fontWeight: 700,
+              }}
+            >
+              Try Build My Routine →
+            </span>
+          </Link>
         </div>
       </section>
 
