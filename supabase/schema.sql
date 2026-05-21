@@ -71,10 +71,10 @@ set    yesstyle_url = replace(yesstyle_url, 'search?queryString=', 'search.html?
 where  yesstyle_url like '%search?queryString=%';
 
 -- ============================================================================
--- Truncate over-long YesStyle keywords to the first 3 space-delimited
--- tokens (≈ brand + first 2 product words). Long keywords trigger
+-- Truncate over-long YesStyle keywords to the first 5 space-delimited
+-- tokens (≈ brand + first 3 product words). Long keywords trigger
 -- YesStyle URL errors. Handles both '+' and '%20' as space encodings.
--- Idempotent: re-running collapses 3 tokens to 3 tokens.
+-- Idempotent: re-running collapses tokens to ≤5 tokens.
 -- ============================================================================
 update public.korean_alternatives
 set    yesstyle_url = 'https://www.yesstyle.com/en/search.html?keyword=' ||
@@ -82,7 +82,7 @@ set    yesstyle_url = 'https://www.yesstyle.com/en/search.html?keyword=' ||
          (regexp_split_to_array(
            regexp_replace(yesstyle_url, '^.*[?&]keyword=', ''),
            '\+|%20'
-         ))[1:3],
+         ))[1:5],
          '+'
        )
 where  yesstyle_url like '%/en/search.html?keyword=%';
