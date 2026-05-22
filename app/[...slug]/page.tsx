@@ -22,38 +22,51 @@ export default async function UrlPrefixPage(
 ) {
   const { slug } = await props.params;
 
+  // Belt-and-braces: catch-all routes always provide a non-empty
+  // string[], but guard anyway so we never feed undefined into the
+  // helpers below.
+  const safeSlug = Array.isArray(slug)
+    ? slug.filter((s): s is string => typeof s === "string" && s.length > 0)
+    : [];
+
   // Amazon pre-check — if this is an Amazon URL with a parseable
   // ASIN, try to resolve a real product title before doing anything
   // else. On any failure (no ASIN, fetch error, no title in the HTML)
   // we silently fall through to the existing slug-based extractor.
-  const amazonAsin = extractAmazonAsin(slug);
+  const amazonAsin = extractAmazonAsin(safeSlug);
   if (amazonAsin) {
     const title = await fetchAmazonTitleFromAsin(amazonAsin);
-    if (title) {
+    if (typeof title === "string" && title.length > 0) {
       redirect(`/search?q=${encodeURIComponent(title)}`);
     }
   }
 
-  const productName = extractProductName(slug);
-  if (!productName) notFound();
+  const productName = extractProductName(safeSlug);
+  if (typeof productName !== "string" || productName.length === 0) {
+    notFound();
+  }
 
   redirect(`/search?q=${encodeURIComponent(productName)}`);
 }
 
-function extractProductName(slug: string[] | undefined): string | null {
-  if (!slug || slug.length === 0) return null;
+function extractProductName(slug: string[]): string | null {
+  if (!Array.isArray(slug) || slug.length === 0) return null;
 
   // Drop empty segments (the "//" in https:// produces one) and strip a
   // leading "http:" / "https:" so a pasted full URL is normalized down
   // to [host, ...path].
-  let parts = slug.filter((s) => s && s.length > 0);
+  let parts = slug.filter(
+    (s): s is string => typeof s === "string" && s.length > 0
+  );
   if (parts.length > 0 && /^https?:$/i.test(parts[0])) {
     parts = parts.slice(1);
   }
   if (parts.length === 0) return null;
 
   // Normalize the host: lowercase and strip an optional "www." prefix.
-  parts[0] = parts[0].toLowerCase().replace(/^www\./, "");
+  const host0 = parts[0];
+  if (typeof host0 !== "string") return null;
+  parts[0] = host0.toLowerCase().replace(/^www\./, "");
 
   // First segment must look like a domain (contains a dot).
   if (!parts[0].includes(".")) return null;
@@ -64,8 +77,9 @@ function extractProductName(slug: string[] | undefined): string | null {
   // Take the last non-empty path segment as the product candidate.
   let last = "";
   for (let i = parts.length - 1; i >= 1; i--) {
-    if (parts[i] && parts[i].trim()) {
-      last = parts[i];
+    const seg = parts[i];
+    if (typeof seg === "string" && seg.trim()) {
+      last = seg;
       break;
     }
   }
@@ -82,7 +96,7 @@ function extractProductName(slug: string[] | undefined): string | null {
     .split(" ");
 
   // Drop trailing SKU-ish tokens: p420652, 420652, sku123, 123abc.
-  while (words.length > 1 && isIdToken(words[words.length - 1])) {
+  while (words.length > 1 && isIdToken(words[words.length - 1] ?? "")) {
     words.pop();
   }
 
@@ -93,6 +107,7 @@ function extractProductName(slug: string[] | undefined): string | null {
 }
 
 function isIdToken(token: string): boolean {
+  if (typeof token !== "string" || token.length === 0) return false;
   // Pure digits, an optional single-letter prefix + digits (p420652, i123),
   // or digits with a short alpha suffix (12345a). Plain words (no digits)
   // are never IDs.
@@ -105,6 +120,7 @@ function isIdToken(token: string): boolean {
 }
 
 function titleCase(s: string): string {
+  if (typeof s !== "string") return "";
   return s
     .split(" ")
     .map((w) =>
@@ -115,18 +131,22 @@ function titleCase(s: string): string {
 
 // ---------- Amazon ASIN resolution (layered pre-check) ----------
 
-function extractAmazonAsin(slug: string[] | undefined): string | null {
-  if (!slug || slug.length === 0) return null;
+function extractAmazonAsin(slug: string[]): string | null {
+  if (!Array.isArray(slug) || slug.length === 0) return null;
 
   // Use the same normalization the slug parser uses so we identify
   // amazon hosts the same way.
-  let parts = slug.filter((s) => s && s.length > 0);
+  let parts = slug.filter(
+    (s): s is string => typeof s === "string" && s.length > 0
+  );
   if (parts.length > 0 && /^https?:$/i.test(parts[0])) {
     parts = parts.slice(1);
   }
   if (parts.length < 2) return null;
 
-  const host = parts[0].toLowerCase().replace(/^www\./, "");
+  const host0 = parts[0];
+  if (typeof host0 !== "string") return null;
+  const host = host0.toLowerCase().replace(/^www\./, "");
   if (!AMAZON_HOST_RE.test(host)) return null;
 
   // ASINs are exactly 10 chars, alphanumeric, and (in practice) always
@@ -134,6 +154,7 @@ function extractAmazonAsin(slug: string[] | undefined): string | null {
   // path slugs like "moisturize" that would otherwise false-match.
   for (let i = 1; i < parts.length; i++) {
     const seg = parts[i];
+    if (typeof seg !== "string") continue;
     if (/^[A-Z0-9]{10}$/i.test(seg) && /\d/.test(seg)) {
       return seg.toUpperCase();
     }
@@ -142,6 +163,9 @@ function extractAmazonAsin(slug: string[] | undefined): string | null {
 }
 
 async function fetchAmazonTitleFromAsin(asin: string): Promise<string | null> {
+  if (typeof asin !== "string" || !/^[A-Z0-9]{10}$/.test(asin)) {
+    return null;
+  }
   // Amazon sometimes returns a CAPTCHA or robot-check page to server
   // fetches. We pass a real browser UA + Accept headers; if the
   // response doesn't carry a parseable productTitle / <title>, we
@@ -165,17 +189,18 @@ async function fetchAmazonTitleFromAsin(asin: string): Promise<string | null> {
       return null;
     }
     const html = await res.text();
+    if (typeof html !== "string" || html.length === 0) return null;
 
     const titleSpan = html.match(
       /<span[^>]*id=["']productTitle["'][^>]*>([\s\S]*?)<\/span>/i
     );
-    if (titleSpan && titleSpan[1]) {
+    if (titleSpan && typeof titleSpan[1] === "string") {
       const cleaned = cleanHtmlText(titleSpan[1]);
       if (cleaned) return cleaned;
     }
 
     const titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    if (titleTag && titleTag[1]) {
+    if (titleTag && typeof titleTag[1] === "string") {
       const raw = cleanHtmlText(titleTag[1]);
       const stripped = raw
         .replace(/^Amazon[^:]*:\s*/i, "")
@@ -196,6 +221,7 @@ async function fetchAmazonTitleFromAsin(asin: string): Promise<string | null> {
 }
 
 function cleanHtmlText(raw: string): string {
+  if (typeof raw !== "string") return "";
   return raw
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&")
