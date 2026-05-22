@@ -143,23 +143,13 @@ async function handleCheckoutCompleted(
     currentPeriodEnd = subscriptionPeriodEndISO(sub);
   }
 
-  const admin = supabaseAdmin();
-  const { error } = await admin
-    .from("subscriptions")
-    .upsert(
-      {
-        user_id: userId,
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
-        status,
-        current_period_end: currentPeriodEnd,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
-  if (error) {
-    throw new Error(`subscriptions upsert failed: ${error.message}`);
-  }
+  await upsertByUserId({
+    user_id: userId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscriptionId,
+    status,
+    current_period_end: currentPeriodEnd,
+  });
 }
 
 async function handleSubscriptionLifecycle(sub: Stripe.Subscription) {
@@ -171,30 +161,20 @@ async function handleSubscriptionLifecycle(sub: Stripe.Subscription) {
   const status = sub.status;
   const currentPeriodEnd = subscriptionPeriodEndISO(sub);
 
-  const admin = supabaseAdmin();
-
   if (userId) {
-    const { error } = await admin
-      .from("subscriptions")
-      .upsert(
-        {
-          user_id: userId,
-          stripe_subscription_id: sub.id,
-          stripe_customer_id:
-            typeof sub.customer === "string" ? sub.customer : sub.customer?.id,
-          status,
-          current_period_end: currentPeriodEnd,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" }
-      );
-    if (error) {
-      throw new Error(`subscriptions upsert failed: ${error.message}`);
-    }
+    await upsertByUserId({
+      user_id: userId,
+      stripe_subscription_id: sub.id,
+      stripe_customer_id:
+        typeof sub.customer === "string" ? sub.customer : sub.customer?.id ?? null,
+      status,
+      current_period_end: currentPeriodEnd,
+    });
     return;
   }
 
   // Fallback: no user_id on the event — match by subscription id.
+  const admin = supabaseAdmin();
   const { error } = await admin
     .from("subscriptions")
     .update({
@@ -205,6 +185,58 @@ async function handleSubscriptionLifecycle(sub: Stripe.Subscription) {
     .eq("stripe_subscription_id", sub.id);
   if (error) {
     throw new Error(`subscriptions update failed: ${error.message}`);
+  }
+}
+
+// Manual upsert by user_id. Avoids Supabase's PostgREST onConflict
+// path, which requires a unique/PK constraint on the conflict column
+// — the deployed subscriptions table doesn't necessarily have one.
+async function upsertByUserId(row: {
+  user_id: string;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  status: string;
+  current_period_end: string | null;
+}) {
+  const admin = supabaseAdmin();
+  const now = new Date().toISOString();
+
+  const { data: existing, error: selErr } = await admin
+    .from("subscriptions")
+    .select("user_id")
+    .eq("user_id", row.user_id)
+    .maybeSingle();
+  if (selErr) {
+    throw new Error(`subscriptions read failed: ${selErr.message}`);
+  }
+
+  if (existing) {
+    const { error } = await admin
+      .from("subscriptions")
+      .update({
+        stripe_customer_id: row.stripe_customer_id,
+        stripe_subscription_id: row.stripe_subscription_id,
+        status: row.status,
+        current_period_end: row.current_period_end,
+        updated_at: now,
+      })
+      .eq("user_id", row.user_id);
+    if (error) {
+      throw new Error(`subscriptions update failed: ${error.message}`);
+    }
+    return;
+  }
+
+  const { error } = await admin.from("subscriptions").insert({
+    user_id: row.user_id,
+    stripe_customer_id: row.stripe_customer_id,
+    stripe_subscription_id: row.stripe_subscription_id,
+    status: row.status,
+    current_period_end: row.current_period_end,
+    updated_at: now,
+  });
+  if (error) {
+    throw new Error(`subscriptions insert failed: ${error.message}`);
   }
 }
 
