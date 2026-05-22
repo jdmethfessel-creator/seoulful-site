@@ -21,6 +21,24 @@ export default function SavedPage() {
     if (!isPremium) openModal();
   }, [isPremium, openModal]);
 
+  // Stripe redirects back to /saved?upgraded=true on successful
+  // checkout. Fire a TikTok CompletePayment conversion once per
+  // landing so the pixel attributes the subscription to the ad click
+  // that brought the user in.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("upgraded") !== "true") return;
+    const ttq = (
+      window as unknown as {
+        ttq?: { track?: (event: string, params?: Record<string, unknown>) => void };
+      }
+    ).ttq;
+    if (typeof ttq?.track === "function") {
+      ttq.track("CompletePayment");
+    }
+  }, []);
+
   return (
     <main
       style={{ background: "#0a0a0a", color: TEXT, minHeight: "100vh" }}
