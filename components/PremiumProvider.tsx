@@ -88,10 +88,29 @@ export function useOpenPremiumModal(): () => void {
   return ctx?.openPremiumModal ?? (() => {});
 }
 
-// Stubbed billing handler. Real impl will hit a Stripe Checkout server
-// action; for now we just log so we can verify the wiring.
-export function handleSubscribe(): void {
-  console.log("[stub] handleSubscribe — start free trial $3.99/month");
+// Kick off a real Stripe Checkout session and redirect to the hosted
+// checkout page. On any failure we surface the message to the user
+// instead of silently doing nothing.
+export async function handleSubscribe(): Promise<void> {
+  try {
+    const res = await fetch("/api/create-checkout-session", {
+      method: "POST",
+    });
+    const data = await res.json().catch(() => ({} as { url?: string; error?: string }));
+    if (!res.ok || typeof data?.url !== "string") {
+      console.error("[stripe] checkout init failed:", { status: res.status, data });
+      alert(
+        typeof data?.error === "string"
+          ? data.error
+          : "Couldn't start checkout. Try again in a moment."
+      );
+      return;
+    }
+    window.location.assign(data.url);
+  } catch (err) {
+    console.error("[stripe] checkout fetch failed:", err);
+    alert("Couldn't reach the billing service. Check your connection and try again.");
+  }
 }
 
 function PremiumModal({ onClose }: { onClose: () => void }) {
