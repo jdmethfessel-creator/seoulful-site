@@ -34,6 +34,14 @@ type EnrichmentResponse = {
 export async function GET(req: NextRequest) {
   const productName = (req.nextUrl.searchParams.get("productName") || "").trim();
   const brand = (req.nextUrl.searchParams.get("brand") || "").trim();
+  const westernPriceRaw = req.nextUrl.searchParams.get("westernPrice");
+  const westernPriceParsed =
+    westernPriceRaw != null && westernPriceRaw !== ""
+      ? Number(westernPriceRaw)
+      : NaN;
+  const westernPrice = Number.isFinite(westernPriceParsed)
+    ? westernPriceParsed
+    : null;
 
   if (!productName) {
     return NextResponse.json(
@@ -58,7 +66,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const match = await findYesStyleProduct(productName, brand);
+    const match = await findYesStyleProduct(productName, brand, westernPrice);
 
     if (!match) {
       console.log("[yesstyle] no match:", { productName, brand });

@@ -59,6 +59,13 @@ export default function KoreanDupeCard({
       productName: alt.name,
       brand: alt.brand ?? "",
     });
+    // Pass the Western product price so the AWIN matcher can
+    // penalize feed rows that are more expensive than the original —
+    // a "dupe" that costs more than the thing it's duping isn't a
+    // dupe.
+    if (westernPrice != null && !isNaN(westernPrice)) {
+      qs.set("westernPrice", String(westernPrice));
+    }
     fetch(`/api/yesstyle-product?${qs.toString()}`)
       .then((r) => r.json())
       .then((data: Enrichment) => {
@@ -75,7 +82,7 @@ export default function KoreanDupeCard({
     return () => {
       cancelled = true;
     };
-  }, [alt.name, alt.brand]);
+  }, [alt.name, alt.brand, westernPrice]);
 
   const displayPrice =
     enrichment?.matched && enrichment.price != null

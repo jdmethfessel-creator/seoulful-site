@@ -38,13 +38,21 @@ const queryCache = new Map<string, CachedMatch>();
 
 export async function findYesStyleProduct(
   productName: string,
-  brand: string
+  brand: string,
+  westernPrice: number | null = null
 ): Promise<AwinMatch | null> {
-  const key = `${(productName || "").toLowerCase()}|${(brand || "").toLowerCase()}`;
+  // Western price participates in the cache key because the scorer
+  // uses it to penalize feed rows priced above the original — a
+  // different reference price can change which row wins.
+  const priceKey =
+    westernPrice != null && Number.isFinite(westernPrice)
+      ? westernPrice.toFixed(2)
+      : "null";
+  const key = `${(productName || "").toLowerCase()}|${(brand || "").toLowerCase()}|${priceKey}`;
   const hit = queryCache.get(key);
   if (hit && Date.now() - hit.at < QUERY_CACHE_TTL_MS) return hit.value;
 
-  const value = await streamAndMatch(productName, brand);
+  const value = await streamAndMatch(productName, brand, westernPrice);
   queryCache.set(key, { value, at: Date.now() });
   return value;
 }
@@ -95,9 +103,16 @@ function pickKeyTerms(brand: string, productName: string): string {
 
 // ---------- streaming match ----------
 
+// Multiplier applied to the title-overlap score when the feed row's
+// price is above the western product's price. "Dupes" that cost more
+// than the original aren't dupes — they fall behind cheaper /
+// equal-priced candidates in the ranking.
+const PRICE_PENALTY = 0.7;
+
 async function streamAndMatch(
   productName: string,
-  brand: string
+  brand: string,
+  westernPrice: number | null
 ): Promise<AwinMatch | null> {
   const feedUrl = process.env.AWIN_FEED_URL;
   if (!feedUrl) {
@@ -176,8 +191,10 @@ async function streamAndMatch(
       for (const t of queryTokens) {
         if (titleTokens.has(t)) matched++;
       }
-      const score = matched / queryTokens.length;
-      if (score === 0) return;
+      const baseScore = matched / queryTokens.length;
+      if (baseScore === 0) return;
+
+      const score = baseScore * pricePenalty(row, westernPrice);
 
       if (!best || score > best.score) best = { row, score };
 
@@ -219,6 +236,16 @@ async function streamAndMatch(
       }
     });
   });
+}
+
+function pricePenalty(row: FeedRow, westernPrice: number | null): number {
+  if (westernPrice == null || !Number.isFinite(westernPrice)) return 1;
+  const feedPrice = toNumber(
+    row.search_price ?? row.display_price ?? row.store_price ?? ""
+  );
+  if (feedPrice == null) return 1;
+  // Cheaper or equal = no penalty; strictly more expensive = penalty.
+  return feedPrice > westernPrice ? PRICE_PENALTY : 1;
 }
 
 function rowToMatch(row: FeedRow): AwinMatch {
