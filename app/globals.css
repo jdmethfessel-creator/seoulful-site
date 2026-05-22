@@ -46,3 +46,19 @@ body {
   animation: kdupe-progress-fill 14s cubic-bezier(0.22, 0.85, 0.2, 1) forwards;
   will-change: width;
 }
+
+@keyframes kdupe-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.kdupe-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: kdupe-skeleton-shimmer 1.6s linear infinite;
+}

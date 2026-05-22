@@ -7,6 +7,7 @@ import {
   type Product,
   type SearchResult,
 } from "@/lib/search";
+import KoreanDupeCard from "@/components/KoreanDupeCard";
 
 const PINK = "#ff3366";
 const GREEN = "#00e676";
@@ -288,7 +289,7 @@ function ResultGrid({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <WesternCard product={product} />
       {alternative ? (
-        <KoreanCard alt={alternative} westernPrice={num(product.price)} />
+        <KoreanDupeCard alt={alternative} westernPrice={num(product.price)} />
       ) : (
         <EmptyState
           heading="No K-beauty dupe yet"
@@ -387,122 +388,6 @@ function WesternCard({ product }: { product: Product }) {
               </li>
             ))}
           </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function KoreanCard({
-  alt,
-  westernPrice,
-}: {
-  alt: Alternative;
-  westernPrice: number | null;
-}) {
-  const actives = splitList(alt.key_actives);
-  const altPrice = num(alt.price);
-  const savings =
-    westernPrice != null && altPrice != null
-      ? Math.max(0, Math.round(westernPrice - altPrice))
-      : null;
-
-  return (
-    <div
-      className="rounded-xl p-6"
-      style={{
-        background: CARD,
-        border: `1px solid ${PINK}`,
-        boxShadow: "0 0 0 1px rgba(255,51,102,0.15), 0 8px 32px rgba(255,51,102,0.12)",
-      }}
-    >
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <div
-          className="text-xs uppercase"
-          style={{ color: PINK, fontWeight: 600, letterSpacing: "0.18em" }}
-        >
-          K-beauty dupe
-        </div>
-        {alt.match_score != null && (
-          <span
-            className="rounded-full px-3 py-1 text-xs"
-            style={{
-              background: "rgba(0, 230, 118, 0.1)",
-              color: GREEN,
-              border: `1px solid ${GREEN}`,
-              fontWeight: 600,
-              letterSpacing: "0.02em",
-            }}
-          >
-            {Math.round(Number(alt.match_score))}% match
-          </span>
-        )}
-      </div>
-      <h2 className="text-2xl sm:text-3xl" style={syneStyle}>
-        {alt.name}
-      </h2>
-      {alt.brand && (
-        <div className="mt-1 text-sm" style={{ color: MUTED, fontWeight: 300 }}>
-          {alt.brand}
-        </div>
-      )}
-      <div
-        className="mt-4 text-3xl"
-        style={{ color: GREEN, ...syneDisplay }}
-      >
-        {fmtPrice(alt.price)}
-      </div>
-
-      {actives.length > 0 && (
-        <div className="mt-6">
-          <div
-            className="text-xs uppercase mb-2"
-            style={{ color: MUTED, fontWeight: 500, letterSpacing: "0.18em" }}
-          >
-            Key actives
-          </div>
-          <ul className="space-y-1">
-            {actives.map((a) => (
-              <li
-                key={a}
-                className="text-sm"
-                style={{ color: TEXT, fontWeight: 300 }}
-              >
-                <span style={{ marginRight: 6, color: GREEN }}>✓</span>
-                {a}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        <BuyButton href={alt.amazon_url} label="Buy on Amazon" />
-        <BuyButton href={alt.sephora_url} label="Buy on Sephora" />
-        <BuyButton href={alt.yesstyle_url} label="Buy on YesStyle" />
-      </div>
-
-      {savings != null && savings > 0 && (
-        <div
-          className="mt-6 pt-4 flex items-center justify-between"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
-        >
-          <span
-            className="text-xs uppercase"
-            style={{
-              color: MUTED,
-              fontWeight: 500,
-              letterSpacing: "0.18em",
-            }}
-          >
-            You save
-          </span>
-          <span
-            className="text-xl"
-            style={{ color: GREEN, ...syneDisplay, fontWeight: 700 }}
-          >
-            ${savings.toLocaleString()}
-          </span>
         </div>
       )}
     </div>

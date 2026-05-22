@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  buildAffiliateLink,
+  buildSearchAffiliateLink,
+  findYesStyleProduct,
+} from "@/lib/awin";
+
+// GET /api/yesstyle-product?productName=...&brand=...
+//
+// Returns enrichment data for a K-beauty dupe card from the YesStyle
+// AWIN product feed:
+//   { matched, imageUrl, price, affiliateUrl, productTitle, productBrand }
+//
+// On no match / failure, matched=false and affiliateUrl is a tracked
+// YesStyle search URL so the "Buy on YesStyle" button still works.
+
+export const runtime = "nodejs";
+// The first cold-start hit on a fresh serverless instance downloads
+// + parses the feed (several seconds, sometimes ~15s).
+export const maxDuration = 30;
+
+type EnrichmentResponse = {
+  matched: boolean;
+  imageUrl: string | null;
+  price: number | null;
+  affiliateUrl: string;
+  productTitle: string | null;
+  productBrand: string | null;
+};
+
+export async function GET(req: NextRequest) {
+  const productName = (req.nextUrl.searchParams.get("productName") || "").trim();
+  const brand = (req.nextUrl.searchParams.get("brand") || "").trim();
+
+  if (!productName) {
+    return NextResponse.json(
+      { error: "productName query param is required" },
+      { status: 400 }
+    );
+  }
+
+  // If env isn't configured, fail soft to a tracked search URL so the
+  // dupe card still has a working Buy button.
+  if (!process.env.AWIN_API_TOKEN || !process.env.AWIN_PUBLISHER_ID) {
+    console.error("[yesstyle] AWIN env vars missing");
+    return NextResponse.json<EnrichmentResponse>({
+      matched: false,
+      imageUrl: null,
+      price: null,
+      affiliateUrl: buildSearchAffiliateLink(`${brand} ${productName}`.trim()),
+      productTitle: null,
+      productBrand: null,
+    });
+  }
+
+  try {
+    const match = await findYesStyleProduct(productName, brand);
+
+    if (!match) {
+      return NextResponse.json<EnrichmentResponse>({
+        matched: false,
+        imageUrl: null,
+        price: null,
+        affiliateUrl: buildSearchAffiliateLink(
+          `${brand} ${productName}`.trim()
+        ),
+        productTitle: null,
+        productBrand: null,
+      });
+    }
+
+    return NextResponse.json<EnrichmentResponse>({
+      matched: true,
+      imageUrl: match.imageUrl || null,
+      price: match.price,
+      affiliateUrl: buildAffiliateLink(match.productUrl),
+      productTitle: match.title,
+      productBrand: match.brand,
+    });
+  } catch (err) {
+    console.error("[yesstyle] enrichment failed:", err);
+    // Soft-fail: keep the card useful by handing back the search
+    // affiliate link rather than 500ing the request.
+    return NextResponse.json<EnrichmentResponse>({
+      matched: false,
+      imageUrl: null,
+      price: null,
+      affiliateUrl: buildSearchAffiliateLink(`${brand} ${productName}`.trim()),
+      productTitle: null,
+      productBrand: null,
+    });
+  }
+}
