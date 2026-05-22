@@ -26,6 +26,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 export async function GET(req: NextRequest) {
   const rawUrl = req.nextUrl.searchParams.get("url");
+  console.log("[image-proxy] fetching:", rawUrl);
   if (!rawUrl) {
     return NextResponse.json({ error: "url query param is required" }, { status: 400 });
   }

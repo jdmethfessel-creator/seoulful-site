@@ -82,6 +82,19 @@ export default function KoreanDupeCard({
       ? enrichment.price
       : num(alt.price);
 
+  // When the AWIN feed gives us a real product match, prefer its
+  // canonical title/brand over the AI's suggestion — otherwise the
+  // card can claim "Some By Mi …" while the Buy button takes the user
+  // to a MIZON product, which is misleading.
+  const displayName =
+    enrichment?.matched && enrichment.productTitle
+      ? enrichment.productTitle
+      : alt.name;
+  const displayBrand =
+    enrichment?.matched && enrichment.productBrand
+      ? enrichment.productBrand
+      : alt.brand;
+
   const yesstyleUrl =
     enrichment?.affiliateUrl ?? alt.yesstyle_url ?? "";
 
@@ -184,14 +197,14 @@ export default function KoreanDupeCard({
       )}
 
       <h2 className="text-2xl sm:text-3xl" style={syneStyle}>
-        {alt.name}
+        {displayName}
       </h2>
-      {alt.brand && (
+      {displayBrand && (
         <div
           className="mt-1 text-sm"
           style={{ color: MUTED, fontWeight: 300 }}
         >
-          {alt.brand}
+          {displayBrand}
         </div>
       )}
       <div className="mt-4 text-3xl" style={{ color: GREEN, ...syneDisplay }}>
