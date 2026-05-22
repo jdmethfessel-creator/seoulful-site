@@ -28,6 +28,7 @@ const syneDisplay = {
 type Enrichment = {
   matched: boolean;
   imageUrl: string | null;
+  fallbackImageUrl: string | null;
   price: number | null;
   affiliateUrl: string;
   productTitle: string | null;
@@ -44,6 +45,13 @@ export default function KoreanDupeCard({
   const actives = splitList(alt.key_actives);
   const [enrichment, setEnrichment] = useState<Enrichment | null>(null);
   const [loadingEnrichment, setLoadingEnrichment] = useState(true);
+  // Tracks which image source we're currently trying for this card:
+  // "primary" = enrichment.imageUrl (aw_image_url), "fallback" =
+  // enrichment.fallbackImageUrl (merchant_image_url), "none" = both
+  // exhausted, hide the slot.
+  const [imageSource, setImageSource] = useState<"primary" | "fallback" | "none">(
+    "primary"
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +62,9 @@ export default function KoreanDupeCard({
     fetch(`/api/yesstyle-product?${qs.toString()}`)
       .then((r) => r.json())
       .then((data: Enrichment) => {
-        if (!cancelled) setEnrichment(data);
+        if (cancelled) return;
+        setEnrichment(data);
+        setImageSource(data.imageUrl ? "primary" : data.fallbackImageUrl ? "fallback" : "none");
       })
       .catch((err) => {
         console.error("[KoreanDupeCard] enrichment failed:", err);
@@ -80,7 +90,14 @@ export default function KoreanDupeCard({
       ? Math.max(0, Math.round(westernPrice - displayPrice))
       : null;
 
-  const showImageSlot = loadingEnrichment || (enrichment?.matched && enrichment.imageUrl);
+  const activeImageUrl =
+    imageSource === "primary"
+      ? enrichment?.imageUrl ?? null
+      : imageSource === "fallback"
+        ? enrichment?.fallbackImageUrl ?? null
+        : null;
+
+  const showImageSlot = loadingEnrichment || (enrichment?.matched && activeImageUrl);
 
   return (
     <div
@@ -130,21 +147,31 @@ export default function KoreanDupeCard({
               className="absolute inset-0 kdupe-skeleton"
               aria-label="Loading product image"
             />
-          ) : enrichment?.imageUrl ? (
+          ) : activeImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={`/api/image-proxy?url=${encodeURIComponent(enrichment.imageUrl)}`}
-              alt={enrichment.productTitle ?? alt.name}
+              // Always route through /api/image-proxy so the YesStyle
+              // CDN sees a request with the right Referer (set inside
+              // the proxy) instead of kdupe.co.
+              src={`/api/image-proxy?url=${encodeURIComponent(activeImageUrl)}`}
+              alt={enrichment?.productTitle ?? alt.name}
               loading="lazy"
               onError={(e) => {
-                const upstream = enrichment.imageUrl;
                 const proxied = (e.currentTarget as HTMLImageElement).src;
                 console.error("[KoreanDupeCard] image failed to load", {
                   proxied,
-                  upstream,
-                  productTitle: enrichment.productTitle,
-                  productBrand: enrichment.productBrand,
+                  upstream: activeImageUrl,
+                  source: imageSource,
+                  productTitle: enrichment?.productTitle,
+                  productBrand: enrichment?.productBrand,
                 });
+                // aw_image_url is broken — try merchant_image_url. If
+                // that's also exhausted, hide the slot.
+                if (imageSource === "primary" && enrichment?.fallbackImageUrl) {
+                  setImageSource("fallback");
+                } else {
+                  setImageSource("none");
+                }
               }}
               style={{
                 width: "100%",

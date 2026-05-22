@@ -23,7 +23,11 @@ export type AwinMatch = {
   title: string;
   brand: string;
   price: number | null;
+  // Primary CDN image (awimg.com). Some rows have a broken or missing
+  // aw_image_url, so callers should fall back to fallbackImageUrl if
+  // this one fails to load.
   imageUrl: string;
+  fallbackImageUrl: string;
   productUrl: string;
 };
 
@@ -218,13 +222,16 @@ async function streamAndMatch(
 }
 
 function rowToMatch(row: FeedRow): AwinMatch {
+  const aw = (row.aw_image_url ?? "").trim();
+  const merchant = (row.merchant_image_url ?? "").trim();
   return {
     title: (row.product_name ?? "").trim(),
     brand: (row.brand_name ?? "").trim(),
     price: toNumber(
       row.search_price ?? row.display_price ?? row.store_price ?? ""
     ),
-    imageUrl: (row.aw_image_url ?? row.merchant_image_url ?? "").trim(),
+    imageUrl: aw || merchant,
+    fallbackImageUrl: aw && merchant && aw !== merchant ? merchant : "",
     productUrl: (row.merchant_deep_link ?? "").trim(),
   };
 }

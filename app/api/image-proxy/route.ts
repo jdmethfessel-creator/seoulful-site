@@ -43,11 +43,15 @@ export async function GET(req: NextRequest) {
     const upstream = await fetch(target.toString(), {
       // Spoof a plain browser-ish request so CDNs that block empty UAs
       // / hotlink Referers don't 403 us. We're acting on behalf of an
-      // affiliate publisher, not scraping the site.
+      // affiliate publisher, not scraping the site. The YesStyle CDN
+      // (yes-co.com / awimg.com) refuses requests with no Referer, so
+      // we set one pointing at yesstyle.com — that's where these images
+      // are normally embedded.
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 kDupeImageProxy/1.0",
         Accept: "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5",
+        Referer: "https://www.yesstyle.com/",
       },
       signal: controller.signal,
       redirect: "follow",

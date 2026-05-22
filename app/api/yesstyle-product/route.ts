@@ -24,6 +24,7 @@ export const maxDuration = 60;
 type EnrichmentResponse = {
   matched: boolean;
   imageUrl: string | null;
+  fallbackImageUrl: string | null;
   price: number | null;
   affiliateUrl: string;
   productTitle: string | null;
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json<EnrichmentResponse>({
       matched: false,
       imageUrl: null,
+      fallbackImageUrl: null,
       price: null,
       affiliateUrl: buildCleanSearchAffiliateLink(brand, productName),
       productTitle: null,
@@ -63,6 +65,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json<EnrichmentResponse>({
         matched: false,
         imageUrl: null,
+        fallbackImageUrl: null,
         price: null,
         affiliateUrl: buildCleanSearchAffiliateLink(brand, productName),
         productTitle: null,
@@ -76,12 +79,14 @@ export async function GET(req: NextRequest) {
       matchedBrand: match.brand,
       price: match.price,
       imageLink: match.imageUrl,
+      fallbackImageLink: match.fallbackImageUrl,
       productUrl: match.productUrl,
     });
 
     return NextResponse.json<EnrichmentResponse>({
       matched: true,
       imageUrl: match.imageUrl || null,
+      fallbackImageUrl: match.fallbackImageUrl || null,
       price: match.price,
       affiliateUrl: buildAffiliateLink(match.productUrl),
       productTitle: match.title,
@@ -94,6 +99,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json<EnrichmentResponse>({
       matched: false,
       imageUrl: null,
+      fallbackImageUrl: null,
       price: null,
       affiliateUrl: buildCleanSearchAffiliateLink(brand, productName),
       productTitle: null,
