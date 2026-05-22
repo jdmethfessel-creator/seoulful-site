@@ -15,9 +15,11 @@ import {
 // YesStyle search URL so the "Buy on YesStyle" button still works.
 
 export const runtime = "nodejs";
-// The first cold-start hit on a fresh serverless instance downloads
-// + parses the feed (several seconds, sometimes ~15s).
-export const maxDuration = 30;
+// Cold-start cost on a fresh serverless instance: download the
+// gzipped feed (~20–40 MB compressed), decompress with the Web
+// Streams DecompressionStream, parse the CSV. 60s is the Vercel Pro
+// ceiling; the in-memory cache means warm hits return in ms.
+export const maxDuration = 60;
 
 type EnrichmentResponse = {
   matched: boolean;
@@ -41,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   // If env isn't configured, fail soft to a tracked search URL so the
   // dupe card still has a working Buy button.
-  if (!process.env.AWIN_API_TOKEN || !process.env.AWIN_PUBLISHER_ID) {
+  if (!process.env.AWIN_FEED_URL || !process.env.AWIN_PUBLISHER_ID) {
     console.error("[yesstyle] AWIN env vars missing");
     return NextResponse.json<EnrichmentResponse>({
       matched: false,
