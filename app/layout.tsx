@@ -35,7 +35,7 @@ export default function RootLayout({
       <head>
         <Script
           id="tiktok-pixel"
-          strategy="afterInteractive"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
 !function (w, d, t) {
