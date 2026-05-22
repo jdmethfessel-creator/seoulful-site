@@ -1,14 +1,13 @@
 // AWIN YesStyle product feed enrichment.
 //
-// Downloads the JSONL feed from AWIN (auth: Bearer AWIN_API_TOKEN),
-// keeps it in module-level memory with a TTL, and exposes a fuzzy
-// brand + title matcher. Used by /api/yesstyle-product to enrich the
-// K-beauty dupe card with a real image, real price, and a tracked
-// affiliate link.
+// Downloads the classic productdata.awin.com CSV feed (apikey in the
+// path, no auth header), keeps the parsed entries in module-level
+// memory with a TTL, and exposes a fuzzy brand + title matcher. Used
+// by /api/yesstyle-product to enrich the K-beauty dupe card with a
+// real image, real price, and a tracked affiliate link.
 
 const ADVERTISER_ID = 63156; // YesStyle on AWIN
 const FEED_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
-const FEED_REGION = "retail-en_US.jsonl";
 
 // Minimum score to count a match (fraction of query tokens that
 // appear in the candidate's title). Below this we return null and
@@ -91,17 +90,25 @@ async function getFeed(): Promise<FeedEntry[]> {
 
 async function downloadAndParse(): Promise<FeedEntry[]> {
   const token = process.env.AWIN_API_TOKEN;
-  const publisherId = process.env.AWIN_PUBLISHER_ID;
-  if (!token || !publisherId) {
-    throw new Error(
-      "AWIN_API_TOKEN and AWIN_PUBLISHER_ID env vars must be set"
-    );
+  if (!token) {
+    throw new Error("AWIN_API_TOKEN env var must be set");
   }
 
-  const url = `https://api.awin.com/publishers/${publisherId}/awinfeeds/download/${ADVERTISER_ID}-${FEED_REGION}`;
+  // Classic productdata CSV endpoint. The Google-format enhanced feed
+  // at api.awin.com isn't available on this publisher account, so we
+  // pull the comma-delimited CSV instead and parse by column name.
+  // The api key is part of the path; delimiter is URL-encoded comma.
+  const url = `https://productdata.awin.com/datafeed/download/apikey/${token}/language/en/fid/${ADVERTISER_ID}/format/csv/delimiter/%2C/compression/none/`;
+  const redacted = url.replace(token, "***");
+  console.log("[awin] downloading feed:", redacted);
+
   const started = Date.now();
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      // Some CDNs reject empty-UA requests.
+      "User-Agent": "kDupe-awin-feed/1.0",
+      Accept: "text/csv,text/plain,*/*",
+    },
   });
   if (!res.ok) {
     const body = await res.text();
@@ -115,28 +122,108 @@ async function downloadAndParse(): Promise<FeedEntry[]> {
     `${(text.length / 1024 / 1024).toFixed(1)} MB in ${Date.now() - started} ms`
   );
 
+  const rows = parseCsv(text);
+  if (rows.length === 0) {
+    throw new Error("AWIN feed CSV was empty");
+  }
+
+  // First row is the column header. Map name → index so we can survive
+  // AWIN reordering columns in the feed.
+  const header = rows[0].map((h) => h.trim());
+  const col = (name: string) => header.indexOf(name);
+  const idxName = col("product_name");
+  const idxBrand = col("brand_name");
+  const idxLink = col("merchant_deep_link");
+  const idxAwImage = col("aw_image_url");
+  const idxMerchantImage = col("merchant_image_url");
+  const idxSearchPrice = col("search_price");
+  const idxDisplayPrice = col("display_price");
+  const idxStorePrice = col("store_price");
+
+  if (idxName === -1 || idxLink === -1) {
+    console.error("[awin] CSV header missing required columns:", header);
+    throw new Error("AWIN CSV header missing product_name or merchant_deep_link");
+  }
+
+  const cell = (row: string[], i: number): string =>
+    i >= 0 && i < row.length ? row[i] : "";
+
   const entries: FeedEntry[] = [];
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const obj = JSON.parse(line) as Record<string, unknown>;
-      const title = stringField(obj, "title");
-      const link = stringField(obj, "link");
-      if (!title || !link) continue;
-      entries.push({
-        title,
-        brand: stringField(obj, "brand"),
-        price: toNumber(obj.price),
-        imageLink: stringField(obj, "image_link"),
-        link,
-      });
-    } catch {
-      // Skip malformed lines; the feed has been observed to include
-      // the occasional stray line break inside a value.
-    }
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const title = cell(row, idxName).trim();
+    const link = cell(row, idxLink).trim();
+    if (!title || !link) continue;
+
+    const priceRaw =
+      cell(row, idxSearchPrice) ||
+      cell(row, idxDisplayPrice) ||
+      cell(row, idxStorePrice);
+
+    entries.push({
+      title,
+      brand: cell(row, idxBrand).trim(),
+      price: toNumber(priceRaw),
+      imageLink:
+        cell(row, idxAwImage).trim() ||
+        cell(row, idxMerchantImage).trim(),
+      link,
+    });
   }
   console.log("[awin] parsed entries:", entries.length);
   return entries;
+}
+
+// CSV state machine — handles double-quote escaping (""), embedded
+// commas / newlines inside quoted fields, and \r\n / \n line endings.
+// AWIN's product descriptions routinely contain commas + newlines, so
+// a naive split() can't be used.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++; // consume the second quote of the escape pair
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === ",") {
+      row.push(field);
+      field = "";
+      continue;
+    }
+    if (ch === "\n") {
+      row.push(field);
+      field = "";
+      rows.push(row);
+      row = [];
+      continue;
+    }
+    if (ch === "\r") continue; // ignore; the \n will close the row
+    field += ch;
+  }
+  // Flush trailing field / row.
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
 }
 
 function findBestMatch(
@@ -190,11 +277,6 @@ function tokenize(s: string): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length >= 2);
-}
-
-function stringField(obj: Record<string, unknown>, key: string): string {
-  const v = obj[key];
-  return typeof v === "string" ? v : "";
 }
 
 function toNumber(v: unknown): number | null {
