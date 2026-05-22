@@ -239,8 +239,6 @@ export default function KoreanDupeCard({
       )}
 
       <div className="mt-6 flex flex-wrap gap-2">
-        <BuyButton href={alt.amazon_url} label="Buy on Amazon" />
-        <BuyButton href={alt.sephora_url} label="Buy on Sephora" />
         <BuyButton href={yesstyleUrl} label="Buy on YesStyle" />
       </div>
 
