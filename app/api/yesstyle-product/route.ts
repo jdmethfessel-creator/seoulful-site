@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
     const match = await findYesStyleProduct(productName, brand);
 
     if (!match) {
+      console.log("[yesstyle] no match:", { productName, brand });
       return NextResponse.json<EnrichmentResponse>({
         matched: false,
         imageUrl: null,
@@ -68,6 +69,15 @@ export async function GET(req: NextRequest) {
         productBrand: null,
       });
     }
+
+    console.log("[yesstyle] match:", {
+      query: { productName, brand },
+      matchedTitle: match.title,
+      matchedBrand: match.brand,
+      price: match.price,
+      imageLink: match.imageUrl,
+      productUrl: match.productUrl,
+    });
 
     return NextResponse.json<EnrichmentResponse>({
       matched: true,

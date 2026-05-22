@@ -133,9 +133,19 @@ export default function KoreanDupeCard({
           ) : enrichment?.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={enrichment.imageUrl}
+              src={`/api/image-proxy?url=${encodeURIComponent(enrichment.imageUrl)}`}
               alt={enrichment.productTitle ?? alt.name}
               loading="lazy"
+              onError={(e) => {
+                const upstream = enrichment.imageUrl;
+                const proxied = (e.currentTarget as HTMLImageElement).src;
+                console.error("[KoreanDupeCard] image failed to load", {
+                  proxied,
+                  upstream,
+                  productTitle: enrichment.productTitle,
+                  productBrand: enrichment.productBrand,
+                });
+              }}
               style={{
                 width: "100%",
                 height: "100%",
