@@ -52,9 +52,10 @@ const PREMIUM_FEATURES = [
 ];
 
 export function PremiumProvider({ children }: { children: ReactNode }) {
-  // Stub: TEMP — forced premium for end-to-end routine testing without
-  // Stripe. Flip isPremium back to false once Supabase/Stripe land.
-  const [state] = useState<AuthState>({ user: null, isPremium: true });
+  // Stub: paywall active for Stripe checkout testing. Real impl will
+  // read isPremium from the user's Supabase session / Stripe
+  // entitlement once the post-checkout webhook is wired.
+  const [state] = useState<AuthState>({ user: null, isPremium: false });
   const [open, setOpen] = useState(false);
 
   const openPremiumModal = useCallback(() => setOpen(true), []);
@@ -277,13 +278,13 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
             cursor: "pointer",
           }}
         >
-          Start free trial
+          Upgrade to Premium
         </button>
         <p
           className="text-xs mt-3 text-center"
           style={{ color: MUTED, fontWeight: 300 }}
         >
-          Cancel anytime. We&apos;ll email a reminder before your trial ends.
+          Cancel anytime. Billed monthly until you cancel.
         </p>
       </div>
     </div>
