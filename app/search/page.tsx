@@ -112,7 +112,7 @@ export default async function SearchPage({
 
         {query && result && (
           <>
-            {result.source === "ai" && (
+            {result.source === "ai" && !result.is_korean_brand && (
               <div
                 className="rounded-lg px-4 py-3 mb-6 text-sm"
                 style={{
@@ -131,12 +131,16 @@ export default async function SearchPage({
               </div>
             )}
 
-            <ResultGrid
-              product={result.product}
-              alternative={result.alternatives[0]}
-            />
+            {result.is_korean_brand ? (
+              <KoreanBrandNotice product={result.product} />
+            ) : (
+              <ResultGrid
+                product={result.product}
+                alternative={result.alternatives[0]}
+              />
+            )}
 
-            {result.alternatives.length > 1 && (
+            {!result.is_korean_brand && result.alternatives.length > 1 && (
               <div className="mt-8">
                 <h2 className="text-xl sm:text-2xl mb-4" style={syneStyle}>
                   Other K-beauty dupes
@@ -220,6 +224,55 @@ function ScrapeError({ query, error }: { query: string; error: string }) {
         <span style={{ color: MUTED, opacity: 0.7 }}>URL:</span> {query}
       </p>
       <p style={{ color: MUTED, fontWeight: 300 }}>{error}</p>
+    </div>
+  );
+}
+
+function KoreanBrandNotice({ product }: { product: Product }) {
+  const display = [product.brand, product.name]
+    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    .join(" ")
+    .trim();
+  return (
+    <div
+      className="rounded-xl p-8 sm:p-10 text-center"
+      style={{
+        background: CARD,
+        border: `1px solid ${GREEN}66`,
+        boxShadow: "0 0 0 1px rgba(0,230,118,0.10), 0 8px 32px rgba(0,230,118,0.10)",
+      }}
+    >
+      <div
+        className="text-xs uppercase mb-3"
+        style={{
+          color: GREEN,
+          letterSpacing: "0.2em",
+          fontWeight: 700,
+        }}
+      >
+        Already K-beauty ✓
+      </div>
+      <h2
+        className="text-2xl sm:text-3xl mb-3"
+        style={{ ...syneStyle, fontWeight: 800, letterSpacing: "-0.025em" }}
+      >
+        This is already a K-beauty product.
+      </h2>
+      {display && (
+        <p
+          className="text-sm sm:text-base mb-4"
+          style={{ color: TEXT, fontWeight: 300 }}
+        >
+          <span style={{ color: MUTED }}>You searched:</span>{" "}
+          <span style={{ color: TEXT, fontWeight: 400 }}>{display}</span>
+        </p>
+      )}
+      <p
+        className="text-base"
+        style={{ color: MUTED, fontWeight: 300, lineHeight: 1.55 }}
+      >
+        Search a Western brand to find your dupe.
+      </p>
     </div>
   );
 }

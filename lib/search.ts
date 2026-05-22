@@ -29,6 +29,9 @@ export type SearchResult = {
   source: "db" | "ai";
   product: Product;
   alternatives: Alternative[];
+  // True when the user searched a Korean / K-beauty product. The UI
+  // surfaces an "already K-beauty" notice instead of a dupe card.
+  is_korean_brand?: boolean;
 };
 
 // Look up a Western skincare product by partial name in the DB. If we
@@ -82,6 +85,12 @@ The user searched for: "${query}"
 
 Identify the most likely Western skincare product they're referring to, then recommend the single best Korean alternative.
 
+KOREAN PRODUCT DETECTION — CHECK FIRST:
+- If the user's query is already a Korean / K-beauty brand or product, set "is_korean_brand": true in the response and skip the dupe search.
+- Korean brands include (non-exhaustive): COSRX, Some By Mi, Beauty of Joseon, Laneige, Innisfree, Numbuzin, Mediheal, Purito, Anua, Round Lab, Skin1004, Klairs, Missha, Etude House, IOPE, Sulwhasoo, Dr. Jart+, Tony Moly, The Face Shop, Nature Republic, History of Whoo, Hera, Su:m37, AHC, Banila Co, Glow Recipe, Then I Met You, Goodal, Pyunkang Yul, Abib, Torriden, Haruharu Wonder, Make P:rem, By Wishtrend, Dr. Ceuracle, I'm From, Mary&May, Mixsoon — and any other Korean brand you recognize.
+- When is_korean_brand is true, you may still fill in the product fields (name, brand, category, price) for the searched product, but set alternative.name to "Already K-beauty" and put a short user-facing explanation in alternative.key_actives like "This product is already Korean skincare — no Western-to-K-beauty dupe needed." Leave amazon_asin and the URL fields empty.
+- When is_korean_brand is false, omit it (or set false) and follow the full Western → Korean matching rules below.
+
 PRODUCT FORMAT — HARD REQUIREMENT:
 - The Korean alternative MUST be the same product category as the Western product. Category is one of: serum, moisturizer, cleanser, toner, sunscreen, eye cream, essence, exfoliant, mask.
 - A serum must match to a serum. A toner must match to a toner. Never match across categories even if actives overlap strongly.
@@ -106,6 +115,7 @@ VALUE & BRAND REQUIREMENTS:
 Respond with ONLY a valid JSON object — no markdown, no preamble, no commentary. Use this exact shape:
 
 {
+  "is_korean_brand": false,
   "product": {
     "name": "<full canonical Western product name>",
     "brand": "<brand>",
@@ -150,7 +160,11 @@ For the Amazon fallback search: when no ASIN is available, our code builds the U
   }
 
   type ParsedAlt = Alternative & { amazon_asin?: string };
-  let parsed: { product: Product; alternative: ParsedAlt };
+  let parsed: {
+    is_korean_brand?: boolean;
+    product: Product;
+    alternative: ParsedAlt;
+  };
   try {
     parsed = JSON.parse(cleaned.slice(first, last + 1));
   } catch (err) {
@@ -169,6 +183,7 @@ For the Amazon fallback search: when no ASIN is available, our code builds the U
   const stamp = Date.now().toString();
   return {
     source: "ai",
+    is_korean_brand: parsed.is_korean_brand === true,
     product: {
       ...parsed.product,
       id: `ai-product-${stamp}`,
