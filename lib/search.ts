@@ -97,6 +97,12 @@ ACTIVE INGREDIENT MATCHING — HARD REQUIREMENT:
     * A product with the same actives in higher concentration scores higher than one with overlapping but weaker formulations.
 - The Korean product's key_actives field MUST list the actives that are actually present in that product (verify against your knowledge of the formulation). Do not pad the list to inflate the match.
 
+VALUE & BRAND REQUIREMENTS:
+- The alternative MUST be from a Korean brand. Japanese brands (SK-II, Shiseido, Tatcha, etc), French brands, and any non-Korean brand are strictly prohibited.
+- Prioritize mid-range Korean brands (COSRX, Some By Mi, Beauty of Joseon, Klairs, Innisfree, Numbuzin, Mediheal, Purito, Anua, Round Lab, Skin1004) over luxury Korean brands when match quality is similar.
+- The goal is maximum active ingredient value per dollar — more actives at higher concentrations for less money. A $35 Korean serum with 40% bifida ferment beats a $150 Korean serum with 5% bifida ferment.
+- Only recommend luxury Korean brands (Sulwhasoo, History of Whoo) when they are genuinely the best ingredient match and no mid-range alternative exists.
+
 Respond with ONLY a valid JSON object — no markdown, no preamble, no commentary. Use this exact shape:
 
 {
