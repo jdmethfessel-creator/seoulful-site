@@ -27,6 +27,7 @@ export default async function UrlPrefixPage(
   props: PageProps<"/[...slug]">
 ) {
   const { slug } = await props.params;
+  console.log("[url-prefix] raw slug:", slug);
 
   // Sanitize once so a stray undefined never reaches downstream
   // helpers (catch-all routes always provide a string[], but guard
@@ -34,20 +35,29 @@ export default async function UrlPrefixPage(
   const safeSlug = Array.isArray(slug)
     ? slug.filter((s): s is string => typeof s === "string" && s.length > 0)
     : [];
+  console.log("[url-prefix] safe slug:", safeSlug);
 
-  if (safeSlug.length === 0) notFound();
+  if (safeSlug.length === 0) {
+    console.log("[url-prefix] empty slug — notFound()");
+    notFound();
+  }
 
   // Path A: the user pasted a full URL with scheme. Reconstruct +
   // parse with URL, then run the Amazon pre-check + last-segment
   // product-name extraction on the parsed pathname.
   const pasted = reconstructPastedUrl(safeSlug);
+  console.log("[url-prefix] reconstructed URL:", pasted ? pasted.toString() : null);
+
   if (pasted) {
     const host = pasted.hostname.toLowerCase().replace(/^www\./, "");
+    console.log("[url-prefix] parsed host:", host, "pathname:", pasted.pathname);
 
     if (AMAZON_HOST_RE.test(host)) {
       const asin = extractAsinFromPath(pasted.pathname);
+      console.log("[url-prefix] amazon asin:", asin);
       if (asin) {
         const title = await fetchAmazonTitleFromAsin(asin);
+        console.log("[url-prefix] amazon title:", title);
         if (typeof title === "string" && title.length > 0) {
           redirect(`/search?q=${encodeURIComponent(title)}`);
         }
@@ -55,17 +65,21 @@ export default async function UrlPrefixPage(
     }
 
     const productName = extractProductNameFromPath(pasted.pathname);
+    console.log("[url-prefix] extractProductNameFromPath ->", productName);
     if (typeof productName === "string" && productName.length > 0) {
       redirect(`/search?q=${encodeURIComponent(productName)}`);
     }
 
+    console.log("[url-prefix] path A produced no name — notFound()");
     notFound();
   }
 
   // Path B: bare host + path with no scheme. Use the original
   // slug-as-[host, ...path] extractor.
   const productName = extractProductName(safeSlug);
+  console.log("[url-prefix] extractProductName ->", productName);
   if (typeof productName !== "string" || productName.length === 0) {
+    console.log("[url-prefix] path B produced no name — notFound()");
     notFound();
   }
 
