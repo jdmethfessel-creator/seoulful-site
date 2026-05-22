@@ -9,9 +9,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type {
+  AuthChangeEvent,
+  Session,
+  User,
+} from "@supabase/supabase-js";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 
-// Stub-mode auth/premium state. We will swap this for a real Supabase
-// session + Stripe entitlement check once keys are live.
+// Real Supabase-backed auth + entitlement check. useAuth subscribes to
+// the supabase session and reads the user's subscriptions row to
+// compute isPremium. The Stripe webhook is what writes that row; this
+// provider is read-only.
 
 const PINK = "#ff3366";
 const GREEN = "#00e676";
@@ -19,19 +27,23 @@ const CARD = "#141414";
 const TEXT = "#f5f0eb";
 const MUTED = "#8a8480";
 
+const SYNE = "var(--font-syne), system-ui, sans-serif";
+
 export type AuthUser = {
   id: string;
-  email: string;
+  email: string | null;
 } | null;
 
 type AuthState = {
   user: AuthUser;
   isPremium: boolean;
+  loading: boolean;
 };
 
 type PremiumCtx = AuthState & {
   openPremiumModal: () => void;
   closePremiumModal: () => void;
+  signOut: () => Promise<void>;
 };
 
 const PremiumContext = createContext<PremiumCtx | null>(null);
@@ -52,32 +64,100 @@ const PREMIUM_FEATURES = [
 ];
 
 export function PremiumProvider({ children }: { children: ReactNode }) {
-  // Stub: paywall active for Stripe checkout testing. Real impl will
-  // read isPremium from the user's Supabase session / Stripe
-  // entitlement once the post-checkout webhook is wired.
-  const [state] = useState<AuthState>({ user: null, isPremium: false });
+  const [user, setUser] = useState<AuthUser>(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+
+  // Subscribe to the supabase session and refresh isPremium when it
+  // changes. Initial getUser() handles the case where the user already
+  // has a valid session from a previous visit.
+  useEffect(() => {
+    const supabase = supabaseBrowser();
+    let mounted = true;
+
+    async function refreshPremium(uid: string) {
+      const { data, error } = await supabase
+        .from("subscriptions")
+        .select("status, current_period_end")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (!mounted) return;
+      if (error) {
+        console.error("[premium] subscriptions read failed:", error.message);
+        setIsPremium(false);
+        return;
+      }
+      setIsPremium(data?.status === "active" || data?.status === "trialing");
+    }
+
+    supabase.auth
+      .getUser()
+      .then(({ data }: { data: { user: User | null } }) => {
+        if (!mounted) return;
+        if (data.user) {
+          setUser({ id: data.user.id, email: data.user.email ?? null });
+          refreshPremium(data.user.id).finally(
+            () => mounted && setLoading(false)
+          );
+        } else {
+          setLoading(false);
+        }
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email ?? null });
+        refreshPremium(session.user.id);
+      } else {
+        setUser(null);
+        setIsPremium(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const openPremiumModal = useCallback(() => setOpen(true), []);
   const closePremiumModal = useCallback(() => setOpen(false), []);
 
+  const signOut = useCallback(async () => {
+    const supabase = supabaseBrowser();
+    await supabase.auth.signOut();
+    setUser(null);
+    setIsPremium(false);
+  }, []);
+
   const value = useMemo<PremiumCtx>(
-    () => ({ ...state, openPremiumModal, closePremiumModal }),
-    [state, openPremiumModal, closePremiumModal]
+    () => ({
+      user,
+      isPremium,
+      loading,
+      openPremiumModal,
+      closePremiumModal,
+      signOut,
+    }),
+    [user, isPremium, loading, openPremiumModal, closePremiumModal, signOut]
   );
 
   return (
     <PremiumContext.Provider value={value}>
       {children}
-      {open && <PremiumModal onClose={closePremiumModal} />}
+      {open && <PremiumModal onClose={closePremiumModal} user={user} />}
     </PremiumContext.Provider>
   );
 }
 
 export function useAuth(): AuthState {
   const ctx = useContext(PremiumContext);
-  if (!ctx) return { user: null, isPremium: false };
-  return { user: ctx.user, isPremium: ctx.isPremium };
+  if (!ctx) return { user: null, isPremium: false, loading: false };
+  return { user: ctx.user, isPremium: ctx.isPremium, loading: ctx.loading };
 }
 
 export function usePremium(): boolean {
@@ -89,15 +169,20 @@ export function useOpenPremiumModal(): () => void {
   return ctx?.openPremiumModal ?? (() => {});
 }
 
-// Kick off a real Stripe Checkout session and redirect to the hosted
-// checkout page. On any failure we surface the message to the user
-// instead of silently doing nothing.
+export function useSignOut(): () => Promise<void> {
+  const ctx = useContext(PremiumContext);
+  return ctx?.signOut ?? (async () => {});
+}
+
+// Hit our checkout endpoint and redirect to the Stripe Checkout URL.
 export async function handleSubscribe(): Promise<void> {
   try {
     const res = await fetch("/api/create-checkout-session", {
       method: "POST",
     });
-    const data = await res.json().catch(() => ({} as { url?: string; error?: string }));
+    const data = await res
+      .json()
+      .catch(() => ({} as { url?: string; error?: string }));
     if (!res.ok || typeof data?.url !== "string") {
       console.error("[stripe] checkout init failed:", { status: res.status, data });
       alert(
@@ -114,8 +199,13 @@ export async function handleSubscribe(): Promise<void> {
   }
 }
 
-function PremiumModal({ onClose }: { onClose: () => void }) {
-  // Close on Escape; lock body scroll while open.
+function PremiumModal({
+  onClose,
+  user,
+}: {
+  onClose: () => void;
+  user: AuthUser;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -153,7 +243,8 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
         style={{
           background: CARD,
           border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,51,102,0.15)",
+          boxShadow:
+            "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,51,102,0.15)",
           padding: "2rem 1.75rem",
           color: TEXT,
           position: "relative",
@@ -193,7 +284,7 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
         <h2
           className="text-3xl mb-2"
           style={{
-            fontFamily: "var(--font-syne), system-ui, sans-serif",
+            fontFamily: SYNE,
             fontWeight: 800,
             letterSpacing: "-0.025em",
             lineHeight: 1.05,
@@ -205,7 +296,7 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
           <span
             className="text-4xl"
             style={{
-              fontFamily: "var(--font-syne), system-ui, sans-serif",
+              fontFamily: SYNE,
               fontWeight: 800,
               letterSpacing: "-0.03em",
               color: GREEN,
@@ -243,7 +334,7 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
                 <div
                   className="text-sm"
                   style={{
-                    fontFamily: "var(--font-syne), system-ui, sans-serif",
+                    fontFamily: SYNE,
                     fontWeight: 700,
                     letterSpacing: "-0.01em",
                     color: TEXT,
@@ -262,24 +353,8 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
           ))}
         </ul>
 
-        <button
-          type="button"
-          onClick={() => {
-            handleSubscribe();
-          }}
-          className="w-full rounded-lg py-3 text-base"
-          style={{
-            background: PINK,
-            color: "#fff",
-            fontFamily: "var(--font-syne), system-ui, sans-serif",
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          Upgrade to Premium
-        </button>
+        {user ? <SignedInUpgrade user={user} /> : <SignInForm />}
+
         <p
           className="text-xs mt-3 text-center"
           style={{ color: MUTED, fontWeight: 300 }}
@@ -288,5 +363,146 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
         </p>
       </div>
     </div>
+  );
+}
+
+function SignedInUpgrade({ user }: { user: NonNullable<AuthUser> }) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          handleSubscribe();
+        }}
+        className="w-full rounded-lg py-3 text-base"
+        style={{
+          background: PINK,
+          color: "#fff",
+          fontFamily: SYNE,
+          fontWeight: 700,
+          letterSpacing: "-0.01em",
+          border: "none",
+          cursor: "pointer",
+        }}
+      >
+        Upgrade to Premium
+      </button>
+      {user.email && (
+        <p
+          className="text-xs mt-2 text-center"
+          style={{ color: MUTED, fontWeight: 300 }}
+        >
+          Signed in as {user.email}
+        </p>
+      )}
+    </>
+  );
+}
+
+function SignInForm() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle"
+  );
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    setStatus("sending");
+    setErrorMsg(null);
+    const supabase = supabaseBrowser();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          window.location.pathname + window.location.search
+        )}`,
+      },
+    });
+    if (error) {
+      console.error("[auth] signInWithOtp failed:", error.message);
+      setStatus("error");
+      setErrorMsg(error.message);
+      return;
+    }
+    setStatus("sent");
+  }
+
+  if (status === "sent") {
+    return (
+      <div
+        className="rounded-lg px-4 py-4 text-sm text-center"
+        style={{
+          background: "rgba(0,230,118,0.08)",
+          border: `1px solid ${GREEN}55`,
+          color: GREEN,
+          fontWeight: 400,
+        }}
+      >
+        Check your email for the sign-in link, then come back here to upgrade.
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <label
+        className="block text-xs uppercase"
+        style={{
+          color: MUTED,
+          letterSpacing: "0.18em",
+          fontWeight: 500,
+        }}
+      >
+        Email
+      </label>
+      <input
+        type="email"
+        required
+        autoComplete="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        className="w-full rounded-lg px-4 py-3 text-base outline-none"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          color: TEXT,
+          fontWeight: 300,
+        }}
+      />
+      <button
+        type="submit"
+        disabled={status === "sending"}
+        className="w-full rounded-lg py-3 text-base"
+        style={{
+          background: status === "sending" ? "rgba(255,51,102,0.5)" : PINK,
+          color: "#fff",
+          fontFamily: SYNE,
+          fontWeight: 700,
+          letterSpacing: "-0.01em",
+          border: "none",
+          cursor: status === "sending" ? "wait" : "pointer",
+        }}
+      >
+        {status === "sending" ? "Sending..." : "Continue with email"}
+      </button>
+      {errorMsg && (
+        <div
+          className="text-xs"
+          style={{ color: PINK, fontWeight: 400 }}
+        >
+          {errorMsg}
+        </div>
+      )}
+      <p
+        className="text-xs text-center"
+        style={{ color: MUTED, fontWeight: 300 }}
+      >
+        We&apos;ll email you a one-click link — no password needed.
+      </p>
+    </form>
   );
 }

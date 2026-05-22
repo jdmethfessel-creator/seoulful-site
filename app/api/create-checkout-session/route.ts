@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { supabaseServer } from "@/lib/supabase/server";
 
 // Stripe Checkout session creator for kDupe Premium ($3.99/mo).
-// Returns { url } — the client redirects window.location to it.
+// Requires an authenticated Supabase user — we pass their id as
+// client_reference_id so the webhook can map the checkout back to a
+// row in our subscriptions table. Returns { url }; the client
+// redirects window.location to it.
 
 export const runtime = "nodejs";
 
@@ -26,6 +30,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: "Sign in with your email before upgrading to Premium." },
+      { status: 401 }
+    );
+  }
+
   const stripe = new Stripe(secret, { apiVersion: STRIPE_API_VERSION });
 
   // Derive the absolute origin for success / cancel URLs from the
@@ -42,6 +57,10 @@ export async function POST(req: NextRequest) {
       cancel_url: `${origin}/routine`,
       allow_promotion_codes: true,
       billing_address_collection: "auto",
+      customer_email: user.email ?? undefined,
+      client_reference_id: user.id,
+      metadata: { user_id: user.id },
+      subscription_data: { metadata: { user_id: user.id } },
     });
 
     if (!session.url) {

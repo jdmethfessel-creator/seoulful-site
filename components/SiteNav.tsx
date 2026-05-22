@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth, useOpenPremiumModal } from "@/components/PremiumProvider";
+import {
+  useAuth,
+  useOpenPremiumModal,
+  useSignOut,
+} from "@/components/PremiumProvider";
 
 const PINK = "#ff3366";
 const GREEN = "#00e676";
@@ -9,8 +13,9 @@ const TEXT = "#f5f0eb";
 const MUTED = "#8a8480";
 
 export default function SiteNav() {
-  const { isPremium } = useAuth();
+  const { user, isPremium } = useAuth();
   const openModal = useOpenPremiumModal();
+  const signOut = useSignOut();
 
   return (
     <nav
@@ -103,6 +108,26 @@ export default function SiteNav() {
             }}
           >
             Upgrade
+          </button>
+        )}
+
+        {user && (
+          <button
+            type="button"
+            onClick={() => {
+              signOut();
+            }}
+            className="hidden sm:inline-flex items-center px-2 py-1.5 text-xs"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: MUTED,
+              cursor: "pointer",
+              fontWeight: 400,
+            }}
+            title={user.email ?? "Sign out"}
+          >
+            Sign out
           </button>
         )}
       </div>
