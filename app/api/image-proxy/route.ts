@@ -19,6 +19,8 @@ const ALLOWED_HOST_SUFFIXES = [
   "awin.com",
   "awinfeeds.com",
   "awimg.com", // AWIN image cache
+  "productserve.com", // AWIN product image CDN (e.g. images2.productserve.com)
+  "ysi.bz", // YesStyle affiliate / image shortener (aff.ysi.bz)
 ];
 
 const MAX_BYTES = 6 * 1024 * 1024; // 6 MB — comfortable headroom for product images
