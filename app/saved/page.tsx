@@ -36,6 +36,7 @@ export default function SavedPage() {
     ).ttq;
     if (typeof ttq?.track === "function") {
       ttq.track("CompletePayment");
+      ttq.track("Purchase", { value: 3.99, currency: "USD" });
     }
   }, []);
 

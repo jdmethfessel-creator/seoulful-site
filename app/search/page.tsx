@@ -8,6 +8,7 @@ import {
   type SearchResult,
 } from "@/lib/search";
 import KoreanDupeCard from "@/components/KoreanDupeCard";
+import TikTokSearchTracker from "@/components/TikTokSearchTracker";
 
 const PINK = "#ff3366";
 const GREEN = "#00e676";
@@ -113,6 +114,9 @@ export default async function SearchPage({
 
         {query && result && (
           <>
+            {!result.is_korean_brand && result.alternatives[0] && (
+              <TikTokSearchTracker query={query} />
+            )}
             {result.source === "ai" && !result.is_korean_brand && (
               <div
                 className="rounded-lg px-4 py-3 mb-6 text-sm"
