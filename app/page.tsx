@@ -67,8 +67,8 @@ export default function Home() {
             lineHeight: 1.55,
           }}
         >
-          Paste any product and find the K-beauty alternative that works just
-          as hard, with cleaner ingredients and a lower price tag.
+          Paste any beauty product URL and find the K-beauty alternative —
+          same actives, cleaner formula, lower price.
         </p>
         <p
           className="mt-3 text-base sm:text-lg max-w-2xl mx-auto"
@@ -78,7 +78,7 @@ export default function Home() {
             lineHeight: 1.55,
           }}
         >
-          Or, add kdupe.co/ before any skincare URL.
+          Or add kdupe.co/ in front of any beauty product URL.
         </p>
 
         <form action="/search" className="mt-10 flex flex-col sm:flex-row gap-3">
