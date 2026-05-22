@@ -1,20 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  async redirects() {
-    return [
-      // URL-prefix dupe lookup: if a user pastes a full URL after the
-      // domain (e.g. kdupe.co/https://www.sephora.com/product/foo), the
-      // path arrives at the server with "https:" as its own segment.
-      // Strip the leading scheme so the catch-all sees the host as
-      // segment 0 ([www.sephora.com, product, foo]).
-      {
-        source: "/:protocol(https?:)/:rest*",
-        destination: "/:rest*",
-        permanent: false,
-      },
-    ];
-  },
+  // No platform-level redirects.
+  //
+  // We previously had a "/:protocol(https?:)/:rest*" → "/:rest*" rule
+  // to handle paste-the-full-URL prefixes like kdupe.co/https://www.sephora.com/...
+  // but the App Router catch-all in app/[...slug]/page.tsx already
+  // normalizes those by filtering empty segments and the leading
+  // "http:" / "https:" token. Keeping a path-to-regexp redirect here
+  // is a footgun for any path that could accidentally match — e.g.
+  // /api/webhook returned 307 in prod, which silently broke Stripe
+  // delivery (Stripe does not follow redirects).
 };
 
 export default nextConfig;
