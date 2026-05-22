@@ -91,16 +91,27 @@ export default async function UrlPrefixPage(
 function reconstructPastedUrl(slug: string[]): URL | null {
   if (!Array.isArray(slug) || slug.length < 2) return null;
 
-  const first = slug[0];
-  if (typeof first !== "string" || !first.endsWith(":")) return null;
+  // The bookmarklet pastes the original URL verbatim into the path,
+  // so the ":" in "https:" arrives percent-encoded as "%3A". Decode
+  // the first segment before checking the protocol shape.
+  const firstRaw = slug[0];
+  if (typeof firstRaw !== "string") return null;
+  let first: string;
+  try {
+    first = decodeURIComponent(firstRaw);
+  } catch {
+    first = firstRaw;
+  }
+  if (!first.endsWith(":")) return null;
 
   // Only http: and https: are real URLs we want to parse. Anything
   // else (a path segment that happens to end in ":") is not a URL.
   if (!/^https?:$/i.test(first)) return null;
 
-  // slug came in as ["https:", "www.amazon.com", "product", "foo"].
-  // Rebuild as "https:" + "//" + "www.amazon.com/product/foo" so the
-  // URL constructor sees a proper scheme separator.
+  // slug came in as ["https:", "www.amazon.com", "product", "foo"]
+  // (or %3A-encoded equivalent). Rebuild as
+  // "https:" + "//" + "www.amazon.com/product/foo" so the URL
+  // constructor sees a proper scheme separator.
   const rest = slug.slice(1).join("/");
   if (rest.length === 0) return null;
 
