@@ -58,6 +58,20 @@ export async function POST(req: NextRequest) {
 
   console.log("[webhook] received:", event.type, event.id);
 
+  // Quick env sanity check so we don't end up with an opaque "Handler
+  // error" when SUPABASE_SERVICE_ROLE_KEY simply wasn't set on this
+  // deployment.
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("[webhook] SUPABASE_SERVICE_ROLE_KEY is not set");
+    return NextResponse.json(
+      {
+        error:
+          "SUPABASE_SERVICE_ROLE_KEY is not set on this deployment. Add it in Vercel → Settings → Environment Variables and redeploy.",
+      },
+      { status: 500 }
+    );
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -72,13 +86,19 @@ export async function POST(req: NextRequest) {
         break;
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
     console.error("[webhook] handler failed:", {
       type: event.type,
       id: event.id,
-      message: err instanceof Error ? err.message : String(err),
+      message,
+      stack,
     });
+    // Stripe shows the response body on its attempt-detail page, so
+    // returning the real message means you can diagnose from the
+    // dashboard without pulling Vercel logs.
     return NextResponse.json(
-      { error: "Handler error" },
+      { error: "Handler error", message, event_type: event.type, event_id: event.id },
       { status: 500 }
     );
   }
