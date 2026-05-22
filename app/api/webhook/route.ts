@@ -137,12 +137,10 @@ async function handleCheckoutCompleted(
   // version current_period_end lives on subscription items.
   let status = "active";
   let currentPeriodEnd: string | null = null;
-  let cancelAtPeriodEnd = false;
   if (subscriptionId) {
     const sub = await stripe.subscriptions.retrieve(subscriptionId);
     status = sub.status;
     currentPeriodEnd = subscriptionPeriodEndISO(sub);
-    cancelAtPeriodEnd = sub.cancel_at_period_end ?? false;
   }
 
   const admin = supabaseAdmin();
@@ -155,7 +153,6 @@ async function handleCheckoutCompleted(
         stripe_subscription_id: subscriptionId,
         status,
         current_period_end: currentPeriodEnd,
-        cancel_at_period_end: cancelAtPeriodEnd,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
@@ -187,7 +184,6 @@ async function handleSubscriptionLifecycle(sub: Stripe.Subscription) {
             typeof sub.customer === "string" ? sub.customer : sub.customer?.id,
           status,
           current_period_end: currentPeriodEnd,
-          cancel_at_period_end: sub.cancel_at_period_end ?? false,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }
@@ -204,7 +200,6 @@ async function handleSubscriptionLifecycle(sub: Stripe.Subscription) {
     .update({
       status,
       current_period_end: currentPeriodEnd,
-      cancel_at_period_end: sub.cancel_at_period_end ?? false,
       updated_at: new Date().toISOString(),
     })
     .eq("stripe_subscription_id", sub.id);
