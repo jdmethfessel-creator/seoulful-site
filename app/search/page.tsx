@@ -289,8 +289,12 @@ function ResultGrid({
   product: Product;
   alternative: Alternative | undefined;
 }) {
+  // On mobile we use flex-col-reverse so the K-beauty dupe lands
+  // above the western product (it's the answer, not the question).
+  // On md+ we switch back to a 2-col grid where source order = visual
+  // order, so the western card stays on the left.
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="flex flex-col-reverse gap-6 md:grid md:grid-cols-2">
       <WesternCard product={product} />
       {alternative ? (
         <KoreanDupeCard alt={alternative} westernPrice={num(product.price)} />
