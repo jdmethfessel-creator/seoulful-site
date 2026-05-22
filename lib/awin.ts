@@ -56,6 +56,39 @@ export function buildSearchAffiliateLink(productName: string): string {
   return buildAffiliateLink(search);
 }
 
+// Tracked YesStyle search URL using only the brand + the first 2–3
+// meaningful words from the product name. This is the "we couldn't
+// pin the exact product, but at least send a clean search" fallback
+// so YesStyle's own search engine has a chance to land the right
+// page.
+export function buildCleanSearchAffiliateLink(
+  brand: string,
+  productName: string
+): string {
+  const terms = pickKeyTerms(brand, productName);
+  return buildSearchAffiliateLink(terms);
+}
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "from", "into", "your", "you",
+  "our", "this", "that", "these", "those", "are", "was", "have",
+  "has", "ml", "oz", "fl", "pcs", "set",
+]);
+
+function pickKeyTerms(brand: string, productName: string): string {
+  const tokens = productName
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3 && !STOPWORDS.has(t) && !/^\d+$/.test(t));
+  const keyWords = tokens.slice(0, 3);
+  const cleanBrand = (brand || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return [cleanBrand, ...keyWords].filter(Boolean).join(" ").trim();
+}
+
 // ---------- internals ----------
 
 async function searchAndMatch(
@@ -82,13 +115,15 @@ async function searchAndMatch(
   const params = new URLSearchParams({
     advertiserId: String(ADVERTISER_ID),
     search: searchQuery,
-    accessToken: token,
   });
   const url = `https://api.awin.com/publishers/${publisherId}/products/?${params.toString()}`;
-  console.log("[awin] searching:", url.replace(token, "***"));
+  console.log("[awin] searching:", url);
 
   const res = await fetch(url, {
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
   });
   if (!res.ok) {
     const body = await res.text();

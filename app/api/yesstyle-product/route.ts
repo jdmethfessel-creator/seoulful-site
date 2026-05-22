@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   buildAffiliateLink,
-  buildSearchAffiliateLink,
+  buildCleanSearchAffiliateLink,
   findYesStyleProduct,
 } from "@/lib/awin";
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       matched: false,
       imageUrl: null,
       price: null,
-      affiliateUrl: buildSearchAffiliateLink(`${brand} ${productName}`.trim()),
+      affiliateUrl: buildCleanSearchAffiliateLink(brand, productName),
       productTitle: null,
       productBrand: null,
     });
@@ -62,9 +62,7 @@ export async function GET(req: NextRequest) {
         matched: false,
         imageUrl: null,
         price: null,
-        affiliateUrl: buildSearchAffiliateLink(
-          `${brand} ${productName}`.trim()
-        ),
+        affiliateUrl: buildCleanSearchAffiliateLink(brand, productName),
         productTitle: null,
         productBrand: null,
       });
@@ -95,7 +93,7 @@ export async function GET(req: NextRequest) {
       matched: false,
       imageUrl: null,
       price: null,
-      affiliateUrl: buildSearchAffiliateLink(`${brand} ${productName}`.trim()),
+      affiliateUrl: buildCleanSearchAffiliateLink(brand, productName),
       productTitle: null,
       productBrand: null,
     });
