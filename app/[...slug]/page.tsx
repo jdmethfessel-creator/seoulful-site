@@ -1,17 +1,23 @@
 import { notFound, redirect } from "next/navigation";
 
-// URL-prefix dupe lookup. When a user pastes a retailer URL after the
-// kDupe domain (e.g. kdupe.co/sephora.com/product/tatcha-water-cream-p420652),
-// the slug segments arrive here as ['sephora.com', 'product', 'tatcha-...'].
-// We pull the product name out of the last path segment and redirect to
-// /search.
+// URL-prefix dupe lookup. Two paste shapes are supported:
 //
-// Amazon URLs are handled separately as a layered pre-check: mobile /
-// short Amazon URLs (kdupe.co/https://www.amazon.com/gp/aw/d/B0CB9D3Y2Q/...)
-// carry only an ASIN, no readable product name, so the generic slug
-// parser would redirect to /search with junk. We resolve the ASIN to
-// the canonical product title server-side first; if that fails for
-// any reason we fall through to the original slug-based extractor.
+//   1. Full URL with scheme:
+//        kdupe.co/https://www.amazon.com/gp/aw/d/B0CB9D3Y2Q/...
+//      Next.js splits the path on "/" and collapses the "//" in the
+//      scheme separator, so the slug arrives as
+//        ['https:', 'www.amazon.com', 'gp', 'aw', 'd', 'B0CB9D3Y2Q', ...]
+//      We re-join the segments with "/", re-insert the lost slash
+//      after the scheme, and feed the result to the URL constructor.
+//
+//   2. Bare host + path (no scheme):
+//        kdupe.co/sephora.com/product/tatcha-water-cream-p420652
+//      Treated as [host, ...path] directly.
+//
+// Amazon URLs of either shape are handled with an extra pre-check:
+// the ASIN is pulled from the path and used to fetch the canonical
+// product title so we don't redirect to /search with garbage like
+// "B0CB9D3Y2Q".
 
 // amazon.com, .co.uk, .ca, .de, .fr, .it, .es, .co.jp, .com.au, .in, etc.
 const AMAZON_HOST_RE =
@@ -22,25 +28,42 @@ export default async function UrlPrefixPage(
 ) {
   const { slug } = await props.params;
 
-  // Belt-and-braces: catch-all routes always provide a non-empty
-  // string[], but guard anyway so we never feed undefined into the
-  // helpers below.
+  // Sanitize once so a stray undefined never reaches downstream
+  // helpers (catch-all routes always provide a string[], but guard
+  // anyway).
   const safeSlug = Array.isArray(slug)
     ? slug.filter((s): s is string => typeof s === "string" && s.length > 0)
     : [];
 
-  // Amazon pre-check — if this is an Amazon URL with a parseable
-  // ASIN, try to resolve a real product title before doing anything
-  // else. On any failure (no ASIN, fetch error, no title in the HTML)
-  // we silently fall through to the existing slug-based extractor.
-  const amazonAsin = extractAmazonAsin(safeSlug);
-  if (amazonAsin) {
-    const title = await fetchAmazonTitleFromAsin(amazonAsin);
-    if (typeof title === "string" && title.length > 0) {
-      redirect(`/search?q=${encodeURIComponent(title)}`);
+  if (safeSlug.length === 0) notFound();
+
+  // Path A: the user pasted a full URL with scheme. Reconstruct +
+  // parse with URL, then run the Amazon pre-check + last-segment
+  // product-name extraction on the parsed pathname.
+  const pasted = reconstructPastedUrl(safeSlug);
+  if (pasted) {
+    const host = pasted.hostname.toLowerCase().replace(/^www\./, "");
+
+    if (AMAZON_HOST_RE.test(host)) {
+      const asin = extractAsinFromPath(pasted.pathname);
+      if (asin) {
+        const title = await fetchAmazonTitleFromAsin(asin);
+        if (typeof title === "string" && title.length > 0) {
+          redirect(`/search?q=${encodeURIComponent(title)}`);
+        }
+      }
     }
+
+    const productName = extractProductNameFromPath(pasted.pathname);
+    if (typeof productName === "string" && productName.length > 0) {
+      redirect(`/search?q=${encodeURIComponent(productName)}`);
+    }
+
+    notFound();
   }
 
+  // Path B: bare host + path with no scheme. Use the original
+  // slug-as-[host, ...path] extractor.
   const productName = extractProductName(safeSlug);
   if (typeof productName !== "string" || productName.length === 0) {
     notFound();
@@ -49,21 +72,68 @@ export default async function UrlPrefixPage(
   redirect(`/search?q=${encodeURIComponent(productName)}`);
 }
 
+// ---------- URL reconstruction ----------
+
+function reconstructPastedUrl(slug: string[]): URL | null {
+  if (!Array.isArray(slug) || slug.length === 0) return null;
+
+  // Join all segments back together; Next.js split them on "/" and
+  // dropped the empty piece that "//" produces, so we have
+  // 'https:/www.amazon.com/...' with one slash after the scheme.
+  let joined = slug.join("/");
+  if (typeof joined !== "string" || joined.length === 0) return null;
+
+  // Re-expand the scheme separator (https:/ → https://).
+  joined = joined.replace(/^(https?:)\/(?!\/)/i, "$1//");
+
+  if (!/^https?:\/\//i.test(joined)) return null;
+
+  try {
+    return new URL(joined);
+  } catch {
+    return null;
+  }
+}
+
+// ---------- URL-pathname extractors ----------
+
+function extractAsinFromPath(pathname: string): string | null {
+  if (typeof pathname !== "string" || pathname.length === 0) return null;
+  const segments = pathname
+    .split("/")
+    .filter((s) => typeof s === "string" && s.length > 0);
+  for (const seg of segments) {
+    if (/^[A-Z0-9]{10}$/i.test(seg) && /\d/.test(seg)) {
+      return seg.toUpperCase();
+    }
+  }
+  return null;
+}
+
+function extractProductNameFromPath(pathname: string): string | null {
+  if (typeof pathname !== "string" || pathname.length === 0) return null;
+  const segments = pathname
+    .split("/")
+    .filter((s) => typeof s === "string" && s.length > 0);
+  if (segments.length === 0) return null;
+  return productNameFromSegment(segments[segments.length - 1]);
+}
+
+// ---------- Bare slug extractor (Path B) ----------
+
 function extractProductName(slug: string[]): string | null {
   if (!Array.isArray(slug) || slug.length === 0) return null;
 
-  // Drop empty segments (the "//" in https:// produces one) and strip a
-  // leading "http:" / "https:" so a pasted full URL is normalized down
-  // to [host, ...path].
   let parts = slug.filter(
     (s): s is string => typeof s === "string" && s.length > 0
   );
+  // Drop a stray scheme segment in case reconstruction fell through
+  // (e.g. someone pasted "http:" with no host after).
   if (parts.length > 0 && /^https?:$/i.test(parts[0])) {
     parts = parts.slice(1);
   }
   if (parts.length === 0) return null;
 
-  // Normalize the host: lowercase and strip an optional "www." prefix.
   const host0 = parts[0];
   if (typeof host0 !== "string") return null;
   parts[0] = host0.toLowerCase().replace(/^www\./, "");
@@ -85,11 +155,26 @@ function extractProductName(slug: string[]): string | null {
   }
   if (!last) return null;
 
+  return productNameFromSegment(last);
+}
+
+// ---------- Shared: turn a path segment into a product name ----------
+
+function productNameFromSegment(segIn: string): string | null {
+  if (typeof segIn !== "string" || segIn.length === 0) return null;
+
   // Strip a trailing file extension (.html, .htm, .aspx, .php, .jsp).
-  last = last.replace(/\.(html?|aspx?|php|jsp)$/i, "");
+  let seg = segIn.replace(/\.(html?|aspx?|php|jsp)$/i, "");
+
+  // Decode percent-encoded characters so "tatcha%20water" → "tatcha water".
+  try {
+    seg = decodeURIComponent(seg);
+  } catch {
+    // leave as-is on malformed sequences
+  }
 
   // Normalize separators to spaces.
-  const words = last
+  const words = seg
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -129,38 +214,7 @@ function titleCase(s: string): string {
     .join(" ");
 }
 
-// ---------- Amazon ASIN resolution (layered pre-check) ----------
-
-function extractAmazonAsin(slug: string[]): string | null {
-  if (!Array.isArray(slug) || slug.length === 0) return null;
-
-  // Use the same normalization the slug parser uses so we identify
-  // amazon hosts the same way.
-  let parts = slug.filter(
-    (s): s is string => typeof s === "string" && s.length > 0
-  );
-  if (parts.length > 0 && /^https?:$/i.test(parts[0])) {
-    parts = parts.slice(1);
-  }
-  if (parts.length < 2) return null;
-
-  const host0 = parts[0];
-  if (typeof host0 !== "string") return null;
-  const host = host0.toLowerCase().replace(/^www\./, "");
-  if (!AMAZON_HOST_RE.test(host)) return null;
-
-  // ASINs are exactly 10 chars, alphanumeric, and (in practice) always
-  // contain at least one digit. The digit check rules out 10-letter
-  // path slugs like "moisturize" that would otherwise false-match.
-  for (let i = 1; i < parts.length; i++) {
-    const seg = parts[i];
-    if (typeof seg !== "string") continue;
-    if (/^[A-Z0-9]{10}$/i.test(seg) && /\d/.test(seg)) {
-      return seg.toUpperCase();
-    }
-  }
-  return null;
-}
+// ---------- Amazon title resolver ----------
 
 async function fetchAmazonTitleFromAsin(asin: string): Promise<string | null> {
   if (typeof asin !== "string" || !/^[A-Z0-9]{10}$/.test(asin)) {
