@@ -418,6 +418,88 @@ export async function searchFromUrl(url: string): Promise<ScrapeResult> {
   return { ok: true, result: { ...aiResult, product } };
 }
 
+// =====================================================================
+// Ingredient summaries — short plain-English paragraphs that replace
+// the flagged-ingredient tags and key-actives bullets on the product
+// cards. One Claude call generates both summaries (western + dupe) in
+// a single JSON blob.
+// =====================================================================
+
+export type IngredientSummaries = {
+  western: string | null;
+  dupe: string | null;
+};
+
+export async function generateIngredientSummaries(
+  product: Product,
+  alternative: Alternative | undefined
+): Promise<IngredientSummaries> {
+  if (!alternative) return { western: null, dupe: null };
+
+  const prompt = `You are writing two short ingredient summaries for a skincare comparison card. Use plain English a normal shopper can follow. Each summary is 2–3 sentences.
+
+WESTERN PRODUCT
+- Name: ${product.name}
+- Brand: ${product.brand || "unknown"}
+- Price: ${product.price != null ? `$${product.price}` : "unknown"}
+- Category: ${product.category || "skincare"}
+- Key actives: ${product.key_actives || "(none listed)"}
+- Flagged ingredients: ${product.flagged_ingredients || "(none listed)"}
+
+K-BEAUTY DUPE
+- Name: ${alternative.name}
+- Brand: ${alternative.brand || "unknown"}
+- Price: ${alternative.price != null ? `$${alternative.price}` : "unknown"}
+- Key actives: ${alternative.key_actives || "(none listed)"}
+
+WESTERN SUMMARY (2–3 sentences)
+- Explain what the western product's key actives do for skin.
+- Call out the flagged ingredients (if any) and briefly explain why each one matters (irritation, hormone disruption, dryness, etc.).
+- Note the brand markup factor — for luxury / prestige brands, most of the price is the brand, packaging, and marketing rather than the formula. Be specific when the price gap with the dupe is meaningful (e.g. "you're paying ~3x more for similar actives").
+
+DUPE SUMMARY (2–3 sentences)
+- Explain what the K-beauty product's key actives do for skin.
+- Note what it SKIPS compared to the western product (e.g. fragrance, denatured alcohol, parabens, dyes) and why that's a benefit (less irritation, gentler on barrier, safer for sensitive skin). If the western has no flagged ingredients, instead highlight what makes the K-beauty formulation cleaner or more thoughtful.
+
+Respond with ONLY a JSON object — no markdown, no preamble, no commentary:
+
+{
+  "western": "<2–3 sentence paragraph>",
+  "dupe": "<2–3 sentence paragraph>"
+}`;
+
+  const text = await callClaude(prompt, 512);
+  if (!text) return { western: null, dupe: null };
+
+  const cleaned = text.replace(/```(?:json)?/g, "").trim();
+  const first = cleaned.indexOf("{");
+  const last = cleaned.lastIndexOf("}");
+  if (first === -1 || last === -1 || last <= first) {
+    console.error(
+      "[summaries] no JSON object in Claude response:",
+      text.slice(0, 200)
+    );
+    return { western: null, dupe: null };
+  }
+
+  try {
+    const parsed = JSON.parse(cleaned.slice(first, last + 1)) as Partial<IngredientSummaries>;
+    return {
+      western:
+        typeof parsed.western === "string" && parsed.western.trim().length > 0
+          ? parsed.western.trim()
+          : null,
+      dupe:
+        typeof parsed.dupe === "string" && parsed.dupe.trim().length > 0
+          ? parsed.dupe.trim()
+          : null,
+    };
+  } catch (err) {
+    console.error("[summaries] JSON.parse failed:", err);
+    return { western: null, dupe: null };
+  }
+}
+
 // Shared Anthropic call. Returns the text body of the first text block,
 // or null on any error (network, non-2xx, missing content).
 async function callClaude(prompt: string, maxTokens: number): Promise<string | null> {

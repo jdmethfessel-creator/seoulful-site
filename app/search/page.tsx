@@ -1,9 +1,11 @@
 import Link from "next/link";
 import {
+  generateIngredientSummaries,
   isUrlInput,
   searchFromUrl,
   searchProduct,
   type Alternative,
+  type IngredientSummaries,
   type Product,
   type SearchResult,
 } from "@/lib/search";
@@ -19,14 +21,6 @@ const TEXT = "#f5f0eb";
 const MUTED = "#8a8480";
 
 type Params = { q?: string };
-
-function splitList(s: string | null | undefined): string[] {
-  if (!s) return [];
-  return s
-    .split(/[,;]/)
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
 
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || isNaN(Number(n))) return "—";
@@ -69,6 +63,17 @@ export default async function SearchPage({
     } else {
       result = await searchProduct(query);
     }
+  }
+
+  // Generate plain-English summaries to replace the tag/bullet
+  // ingredient lists on both cards. Skip for the "already K-beauty"
+  // notice path since there's no comparison to make.
+  let summaries: IngredientSummaries = { western: null, dupe: null };
+  if (result && !result.is_korean_brand && result.alternatives[0]) {
+    summaries = await generateIngredientSummaries(
+      result.product,
+      result.alternatives[0]
+    );
   }
 
   return (
@@ -142,6 +147,7 @@ export default async function SearchPage({
               <ResultGrid
                 product={result.product}
                 alternative={result.alternatives[0]}
+                summaries={summaries}
               />
             )}
 
@@ -285,9 +291,11 @@ function KoreanBrandNotice({ product }: { product: Product }) {
 function ResultGrid({
   product,
   alternative,
+  summaries,
 }: {
   product: Product;
   alternative: Alternative | undefined;
+  summaries: IngredientSummaries;
 }) {
   // On mobile we use flex-col-reverse so the K-beauty dupe lands
   // above the western product (it's the answer, not the question).
@@ -295,9 +303,13 @@ function ResultGrid({
   // order, so the western card stays on the left.
   return (
     <div className="flex flex-col-reverse gap-6 md:grid md:grid-cols-2">
-      <WesternCard product={product} />
+      <WesternCard product={product} summary={summaries.western} />
       {alternative ? (
-        <KoreanDupeCard alt={alternative} westernPrice={num(product.price)} />
+        <KoreanDupeCard
+          alt={alternative}
+          westernPrice={num(product.price)}
+          summary={summaries.dupe}
+        />
       ) : (
         <EmptyState
           heading="No K-beauty dupe yet"
@@ -308,9 +320,13 @@ function ResultGrid({
   );
 }
 
-function WesternCard({ product }: { product: Product }) {
-  const flagged = splitList(product.flagged_ingredients);
-  const actives = splitList(product.key_actives);
+function WesternCard({
+  product,
+  summary,
+}: {
+  product: Product;
+  summary: string | null;
+}) {
   return (
     <div
       className="rounded-xl p-6"
@@ -345,58 +361,13 @@ function WesternCard({ product }: { product: Product }) {
         {fmtPrice(product.price)}
       </div>
 
-      {flagged.length > 0 && (
-        <div className="mt-6">
-          <div
-            className="text-xs uppercase mb-2"
-            style={{ color: AMBER, fontWeight: 600, letterSpacing: "0.18em" }}
-          >
-            Flagged ingredients
-          </div>
-          <ul className="space-y-1.5">
-            {flagged.map((f) => (
-              <li
-                key={f}
-                className="text-sm inline-flex items-center mr-2"
-                style={{
-                  color: PINK,
-                  fontWeight: 300,
-                  background: "rgba(255, 51, 102, 0.08)",
-                  border: "1px solid rgba(255, 51, 102, 0.25)",
-                  borderRadius: 6,
-                  padding: "3px 9px",
-                  marginRight: 6,
-                }}
-              >
-                <span style={{ marginRight: 6 }}>⚠</span>
-                {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {actives.length > 0 && (
-        <div className="mt-6">
-          <div
-            className="text-xs uppercase mb-2"
-            style={{ color: MUTED, fontWeight: 500, letterSpacing: "0.18em" }}
-          >
-            Key actives
-          </div>
-          <ul className="space-y-1">
-            {actives.map((a) => (
-              <li
-                key={a}
-                className="text-sm"
-                style={{ color: TEXT, fontWeight: 300 }}
-              >
-                <span style={{ marginRight: 6, color: GREEN }}>✓</span>
-                {a}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {summary && (
+        <p
+          className="mt-6 text-sm sm:text-base"
+          style={{ color: TEXT, fontWeight: 300, lineHeight: 1.6 }}
+        >
+          {summary}
+        </p>
       )}
     </div>
   );

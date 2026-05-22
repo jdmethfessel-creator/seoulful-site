@@ -38,11 +38,12 @@ type Enrichment = {
 export default function KoreanDupeCard({
   alt,
   westernPrice,
+  summary,
 }: {
   alt: Alternative;
   westernPrice: number | null;
+  summary?: string | null;
 }) {
-  const actives = splitList(alt.key_actives);
   const [enrichment, setEnrichment] = useState<Enrichment | null>(null);
   const [loadingEnrichment, setLoadingEnrichment] = useState(true);
   // Tracks which image source we're currently trying for this card:
@@ -218,31 +219,13 @@ export default function KoreanDupeCard({
         {fmtPrice(displayPrice)}
       </div>
 
-      {actives.length > 0 && (
-        <div className="mt-6">
-          <div
-            className="text-xs uppercase mb-2"
-            style={{
-              color: MUTED,
-              fontWeight: 500,
-              letterSpacing: "0.18em",
-            }}
-          >
-            Key actives
-          </div>
-          <ul className="space-y-1">
-            {actives.map((a) => (
-              <li
-                key={a}
-                className="text-sm"
-                style={{ color: TEXT, fontWeight: 300 }}
-              >
-                <span style={{ marginRight: 6, color: GREEN }}>✓</span>
-                {a}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {summary && (
+        <p
+          className="mt-6 text-sm sm:text-base"
+          style={{ color: TEXT, fontWeight: 300, lineHeight: 1.6 }}
+        >
+          {summary}
+        </p>
       )}
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -301,14 +284,6 @@ function BuyButton({
       {label} →
     </a>
   );
-}
-
-function splitList(s: string | null | undefined): string[] {
-  if (!s) return [];
-  return s
-    .split(/[,;]/)
-    .map((x) => x.trim())
-    .filter(Boolean);
 }
 
 function fmtPrice(n: number | null | undefined): string {
