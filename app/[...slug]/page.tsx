@@ -75,21 +75,25 @@ export default async function UrlPrefixPage(
 // ---------- URL reconstruction ----------
 
 function reconstructPastedUrl(slug: string[]): URL | null {
-  if (!Array.isArray(slug) || slug.length === 0) return null;
+  if (!Array.isArray(slug) || slug.length < 2) return null;
 
-  // Join all segments back together; Next.js split them on "/" and
-  // dropped the empty piece that "//" produces, so we have
-  // 'https:/www.amazon.com/...' with one slash after the scheme.
-  let joined = slug.join("/");
-  if (typeof joined !== "string" || joined.length === 0) return null;
+  const first = slug[0];
+  if (typeof first !== "string" || !first.endsWith(":")) return null;
 
-  // Re-expand the scheme separator (https:/ → https://).
-  joined = joined.replace(/^(https?:)\/(?!\/)/i, "$1//");
+  // Only http: and https: are real URLs we want to parse. Anything
+  // else (a path segment that happens to end in ":") is not a URL.
+  if (!/^https?:$/i.test(first)) return null;
 
-  if (!/^https?:\/\//i.test(joined)) return null;
+  // slug came in as ["https:", "www.amazon.com", "product", "foo"].
+  // Rebuild as "https:" + "//" + "www.amazon.com/product/foo" so the
+  // URL constructor sees a proper scheme separator.
+  const rest = slug.slice(1).join("/");
+  if (rest.length === 0) return null;
+
+  const reconstructed = `${first}//${rest}`;
 
   try {
-    return new URL(joined);
+    return new URL(reconstructed);
   } catch {
     return null;
   }
