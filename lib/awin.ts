@@ -1,26 +1,20 @@
-// AWIN YesStyle product feed enrichment.
+// AWIN YesStyle product search.
 //
-// Downloads the classic productdata.awin.com CSV feed (apikey in the
-// path, no auth header), keeps the parsed entries in module-level
-// memory with a TTL, and exposes a fuzzy brand + title matcher. Used
-// by /api/yesstyle-product to enrich the K-beauty dupe card with a
-// real image, real price, and a tracked affiliate link.
+// Uses the publisher /products/?search= endpoint to look up matching
+// YesStyle products by keyword. Each dupe card fires one small JSON
+// request rather than downloading the 283 MB bulk feed (which the
+// classic CSV endpoint can't reliably stream on a serverless
+// function timeout anyway). Results are cached in module memory by
+// (productName, brand) for an hour so repeat queries are free.
 
 const ADVERTISER_ID = 63156; // YesStyle on AWIN
-const FEED_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-// Minimum score to count a match (fraction of query tokens that
-// appear in the candidate's title). Below this we return null and
-// the client falls back to a YesStyle search link.
+// Floor on the title-overlap score (fraction of query tokens that
+// appear in the result's title). Below this we treat the API match
+// as unrelated and fall back to a YesStyle search link.
 const MATCH_THRESHOLD = 0.4;
 
-export type FeedEntry = {
-  title: string;
-  brand: string;
-  price: number | null;
-  imageLink: string;
-  link: string;
-};
+const QUERY_CACHE_TTL_MS = 60 * 60 * 1000; // 1h
 
 export type AwinMatch = {
   title: string;
@@ -30,20 +24,22 @@ export type AwinMatch = {
   productUrl: string;
 };
 
-type Cache = {
-  entries: FeedEntry[];
-  builtAt: number;
-};
-
-let cache: Cache | null = null;
-let inflight: Promise<FeedEntry[]> | null = null;
+type CachedQuery = { value: AwinMatch | null; at: number };
+const queryCache = new Map<string, CachedQuery>();
 
 export async function findYesStyleProduct(
   productName: string,
   brand: string
 ): Promise<AwinMatch | null> {
-  const entries = await getFeed();
-  return findBestMatch(entries, brand, productName);
+  const key = `${(productName || "").toLowerCase()}|${(brand || "").toLowerCase()}`;
+  const hit = queryCache.get(key);
+  if (hit && Date.now() - hit.at < QUERY_CACHE_TTL_MS) {
+    return hit.value;
+  }
+
+  const value = await searchAndMatch(productName, brand);
+  queryCache.set(key, { value, at: Date.now() });
+  return value;
 }
 
 export function buildAffiliateLink(productUrl: string): string {
@@ -62,214 +58,156 @@ export function buildSearchAffiliateLink(productName: string): string {
 
 // ---------- internals ----------
 
-async function getFeed(): Promise<FeedEntry[]> {
-  const now = Date.now();
-  if (cache && now - cache.builtAt < FEED_TTL_MS) {
-    return cache.entries;
-  }
-  if (inflight) return inflight;
-
-  inflight = downloadAndParse()
-    .then((entries) => {
-      cache = { entries, builtAt: Date.now() };
-      inflight = null;
-      return entries;
-    })
-    .catch((err) => {
-      inflight = null;
-      // If we have a stale cache, keep serving it on failure rather
-      // than blowing up every dupe card.
-      if (cache) {
-        console.error("[awin] refresh failed, serving stale:", err);
-        return cache.entries;
-      }
-      throw err;
-    });
-  return inflight;
-}
-
-async function downloadAndParse(): Promise<FeedEntry[]> {
+async function searchAndMatch(
+  productName: string,
+  brand: string
+): Promise<AwinMatch | null> {
   const token = process.env.AWIN_API_TOKEN;
-  if (!token) {
-    throw new Error("AWIN_API_TOKEN env var must be set");
+  const publisherId = process.env.AWIN_PUBLISHER_ID;
+  if (!token || !publisherId) {
+    throw new Error(
+      "AWIN_API_TOKEN and AWIN_PUBLISHER_ID env vars must be set"
+    );
   }
 
-  // Classic productdata CSV endpoint. The Google-format enhanced feed
-  // at api.awin.com isn't available on this publisher account, so we
-  // pull the comma-delimited CSV instead and parse by column name.
-  // The api key is part of the path; delimiter is URL-encoded comma.
-  const url = `https://productdata.awin.com/datafeed/download/apikey/${token}/language/en/fid/${ADVERTISER_ID}/format/csv/delimiter/%2C/compression/none/`;
-  const redacted = url.replace(token, "***");
-  console.log("[awin] downloading feed:", redacted);
+  // Brand + product name gives the API a stronger keyword signal than
+  // product name alone, and AWIN's relevance ranking does most of the
+  // filtering for us.
+  const searchQuery = [brand, productName]
+    .filter((s) => s && s.trim())
+    .join(" ")
+    .trim();
+  if (!searchQuery) return null;
 
-  const started = Date.now();
+  const params = new URLSearchParams({
+    advertiserId: String(ADVERTISER_ID),
+    search: searchQuery,
+    accessToken: token,
+  });
+  const url = `https://api.awin.com/publishers/${publisherId}/products/?${params.toString()}`;
+  console.log("[awin] searching:", url.replace(token, "***"));
+
   const res = await fetch(url, {
-    headers: {
-      // Some CDNs reject empty-UA requests.
-      "User-Agent": "kDupe-awin-feed/1.0",
-      Accept: "text/csv,text/plain,*/*",
-    },
+    headers: { Accept: "application/json" },
   });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(
-      `AWIN feed download failed: ${res.status} ${res.statusText} — ${body.slice(0, 300)}`
+      `AWIN search failed: ${res.status} ${res.statusText} — ${body.slice(0, 400)}`
     );
   }
-  const text = await res.text();
-  console.log(
-    "[awin] downloaded feed:",
-    `${(text.length / 1024 / 1024).toFixed(1)} MB in ${Date.now() - started} ms`
-  );
 
-  const rows = parseCsv(text);
-  if (rows.length === 0) {
-    throw new Error("AWIN feed CSV was empty");
+  const data: unknown = await res.json();
+  const products = extractProducts(data);
+  if (products.length === 0) {
+    console.log("[awin] zero products returned for:", searchQuery);
+    return null;
   }
+  // First-result key list helps us notice if AWIN renames a field.
+  console.log("[awin] sample product keys:", Object.keys(products[0]));
 
-  // First row is the column header. Map name → index so we can survive
-  // AWIN reordering columns in the feed.
-  const header = rows[0].map((h) => h.trim());
-  const col = (name: string) => header.indexOf(name);
-  const idxName = col("product_name");
-  const idxBrand = col("brand_name");
-  const idxLink = col("merchant_deep_link");
-  const idxAwImage = col("aw_image_url");
-  const idxMerchantImage = col("merchant_image_url");
-  const idxSearchPrice = col("search_price");
-  const idxDisplayPrice = col("display_price");
-  const idxStorePrice = col("store_price");
-
-  if (idxName === -1 || idxLink === -1) {
-    console.error("[awin] CSV header missing required columns:", header);
-    throw new Error("AWIN CSV header missing product_name or merchant_deep_link");
-  }
-
-  const cell = (row: string[], i: number): string =>
-    i >= 0 && i < row.length ? row[i] : "";
-
-  const entries: FeedEntry[] = [];
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r];
-    const title = cell(row, idxName).trim();
-    const link = cell(row, idxLink).trim();
-    if (!title || !link) continue;
-
-    const priceRaw =
-      cell(row, idxSearchPrice) ||
-      cell(row, idxDisplayPrice) ||
-      cell(row, idxStorePrice);
-
-    entries.push({
-      title,
-      brand: cell(row, idxBrand).trim(),
-      price: toNumber(priceRaw),
-      imageLink:
-        cell(row, idxAwImage).trim() ||
-        cell(row, idxMerchantImage).trim(),
-      link,
-    });
-  }
-  console.log("[awin] parsed entries:", entries.length);
-  return entries;
-}
-
-// CSV state machine — handles double-quote escaping (""), embedded
-// commas / newlines inside quoted fields, and \r\n / \n line endings.
-// AWIN's product descriptions routinely contain commas + newlines, so
-// a naive split() can't be used.
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++; // consume the second quote of the escape pair
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      inQuotes = true;
-      continue;
-    }
-    if (ch === ",") {
-      row.push(field);
-      field = "";
-      continue;
-    }
-    if (ch === "\n") {
-      row.push(field);
-      field = "";
-      rows.push(row);
-      row = [];
-      continue;
-    }
-    if (ch === "\r") continue; // ignore; the \n will close the row
-    field += ch;
-  }
-  // Flush trailing field / row.
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows;
-}
-
-function findBestMatch(
-  entries: FeedEntry[],
-  brand: string,
-  productName: string
-): AwinMatch | null {
   const queryTokens = tokenize(productName);
   if (queryTokens.length === 0) return null;
-  const brandTokens = tokenize(brand);
 
-  let best: { entry: FeedEntry; score: number } | null = null;
-
-  for (const entry of entries) {
-    const titleLower = entry.title.toLowerCase();
-    const brandLower = entry.brand.toLowerCase();
-
-    // Require some brand overlap to avoid matching a coincidentally
-    // similar title from a different brand. A brand token has to
-    // appear in either the entry's brand field or the title.
-    if (brandTokens.length > 0) {
-      const brandHit = brandTokens.some(
-        (t) => brandLower.includes(t) || titleLower.includes(t)
-      );
-      if (!brandHit) continue;
-    }
-
-    const titleTokens = new Set(tokenize(entry.title));
+  let best: { product: Record<string, unknown>; score: number } | null = null;
+  for (const p of products) {
+    const title = extractTitle(p);
+    if (!title) continue;
+    const titleTokens = new Set(tokenize(title));
     let matched = 0;
     for (const t of queryTokens) {
       if (titleTokens.has(t)) matched++;
     }
     const score = matched / queryTokens.length;
     if (score === 0) continue;
-    if (!best || score > best.score) best = { entry, score };
+    if (!best || score > best.score) best = { product: p, score };
   }
 
-  if (!best || best.score < MATCH_THRESHOLD) return null;
+  if (!best || best.score < MATCH_THRESHOLD) {
+    console.log("[awin] best below threshold:", {
+      score: best?.score,
+      searchQuery,
+    });
+    return null;
+  }
 
+  const match = extractMatch(best.product);
+  if (!match.productUrl) {
+    console.log("[awin] best product has no URL");
+    return null;
+  }
+  return match;
+}
+
+function extractProducts(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    for (const key of ["products", "data", "results", "items"]) {
+      const v = obj[key];
+      if (Array.isArray(v)) return v as Record<string, unknown>[];
+    }
+  }
+  return [];
+}
+
+function extractTitle(p: Record<string, unknown>): string {
+  return (
+    strField(p, "productName") ||
+    strField(p, "title") ||
+    strField(p, "name")
+  );
+}
+
+function extractMatch(p: Record<string, unknown>): AwinMatch {
   return {
-    title: best.entry.title,
-    brand: best.entry.brand,
-    price: best.entry.price,
-    imageUrl: best.entry.imageLink,
-    productUrl: best.entry.link,
+    title: extractTitle(p),
+    brand:
+      strField(p, "brandName") ||
+      strField(p, "brand") ||
+      strField(p, "merchantName"),
+    price: extractPrice(p),
+    imageUrl:
+      strField(p, "imageUrl") ||
+      strField(p, "productImage") ||
+      strField(p, "aw_image_url") ||
+      strField(p, "merchantImageUrl") ||
+      strField(p, "image_link"),
+    productUrl:
+      strField(p, "merchantProductUrl") ||
+      strField(p, "merchant_deep_link") ||
+      strField(p, "productUrl") ||
+      strField(p, "url"),
   };
+}
+
+function extractPrice(p: Record<string, unknown>): number | null {
+  // Try flat-number fields first.
+  const flat =
+    toNumber(p.price) ??
+    toNumber(p.displayPrice) ??
+    toNumber(p.searchPrice) ??
+    toNumber(p.storePrice);
+  if (flat !== null) return flat;
+
+  // Nested { amount } / { value } shapes — common for currency-aware
+  // price objects in AWIN responses.
+  const priceObj = p.price;
+  if (priceObj && typeof priceObj === "object") {
+    const o = priceObj as Record<string, unknown>;
+    return (
+      toNumber(o.amount) ??
+      toNumber(o.value) ??
+      toNumber(o.searchPrice) ??
+      toNumber(o.displayPrice)
+    );
+  }
+  return null;
+}
+
+function strField(obj: Record<string, unknown>, key: string): string {
+  const v = obj[key];
+  return typeof v === "string" ? v : "";
 }
 
 function tokenize(s: string): string[] {
