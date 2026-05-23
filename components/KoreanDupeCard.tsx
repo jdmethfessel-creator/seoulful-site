@@ -5,6 +5,7 @@ import type { Alternative } from "@/lib/search";
 
 const PINK = "#ff3366";
 const GREEN = "#00e676";
+const AMBER = "#ffb74d";
 const CARD = "#141414";
 const TEXT = "#f5f0eb";
 const MUTED = "#8a8480";
@@ -44,6 +45,8 @@ export default function KoreanDupeCard({
   westernPrice: number | null;
   summary?: string | null;
 }) {
+  const actives = splitList(alt.key_actives);
+  const flagged = splitList(alt.flagged_ingredients);
   const [enrichment, setEnrichment] = useState<Enrichment | null>(null);
   const [loadingEnrichment, setLoadingEnrichment] = useState(true);
   // Tracks which image source we're currently trying for this card:
@@ -207,12 +210,14 @@ export default function KoreanDupeCard({
       <h2 className="text-2xl sm:text-3xl" style={syneStyle}>
         {displayName}
       </h2>
-      {displayBrand && (
+      {(displayBrand || alt.category) && (
         <div
           className="mt-1 text-sm"
           style={{ color: MUTED, fontWeight: 300 }}
         >
           {displayBrand}
+          {displayBrand && alt.category && <> · {alt.category}</>}
+          {!displayBrand && alt.category}
         </div>
       )}
       <div className="mt-4 text-3xl" style={{ color: GREEN, ...syneDisplay }}>
@@ -226,6 +231,64 @@ export default function KoreanDupeCard({
         >
           {summary}
         </p>
+      )}
+
+      {flagged.length > 0 && (
+        <div className="mt-6">
+          <div
+            className="text-xs uppercase mb-2"
+            style={{ color: AMBER, fontWeight: 600, letterSpacing: "0.18em" }}
+          >
+            Flagged ingredients
+          </div>
+          <ul className="space-y-1.5">
+            {flagged.map((f) => (
+              <li
+                key={f}
+                className="text-sm inline-flex items-center mr-2"
+                style={{
+                  color: PINK,
+                  fontWeight: 300,
+                  background: "rgba(255, 51, 102, 0.08)",
+                  border: "1px solid rgba(255, 51, 102, 0.25)",
+                  borderRadius: 6,
+                  padding: "3px 9px",
+                  marginRight: 6,
+                }}
+              >
+                <span style={{ marginRight: 6 }}>⚠</span>
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {actives.length > 0 && (
+        <div className="mt-6">
+          <div
+            className="text-xs uppercase mb-2"
+            style={{
+              color: MUTED,
+              fontWeight: 500,
+              letterSpacing: "0.18em",
+            }}
+          >
+            Key actives
+          </div>
+          <ul className="space-y-1">
+            {actives.map((a) => (
+              <li
+                key={a}
+                className="text-sm"
+                style={{ color: TEXT, fontWeight: 300 }}
+              >
+                <span style={{ marginRight: 6, color: GREEN }}>✓</span>
+                {a}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -284,6 +347,14 @@ function BuyButton({
       {label} →
     </a>
   );
+}
+
+function splitList(s: string | null | undefined): string[] {
+  if (!s) return [];
+  return s
+    .split(/[,;]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
 function fmtPrice(n: number | null | undefined): string {

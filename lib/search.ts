@@ -17,8 +17,10 @@ export type Alternative = {
   name: string;
   brand: string | null;
   price: number | null;
+  category: string | null;
   match_score: number | null;
   ingredient_list: string | null;
+  flagged_ingredients: string | null;
   key_actives: string | null;
   amazon_url: string | null;
   sephora_url: string | null;
@@ -128,7 +130,9 @@ Respond with ONLY a valid JSON object — no markdown, no preamble, no commentar
     "name": "<Korean product name>",
     "brand": "<Korean brand>",
     "price": <number, USD>,
+    "category": "<must match the western product's category — serum|moisturizer|cleanser|toner|sunscreen|eye cream|essence|exfoliant|mask>",
     "match_score": <integer 0-100 — how close the active profile matches>,
+    "flagged_ingredients": "<comma-separated concerning ingredients in the Korean product (fragrance, denatured alcohol, etc) — empty string if none, which is the common case for K-beauty>",
     "key_actives": "<comma-separated actives in the Korean product>",
     "amazon_asin": "<10-char Amazon ASIN for this product, or empty string if you don't confidently know it>",
     "sephora_url": "",
@@ -436,7 +440,7 @@ export async function generateIngredientSummaries(
 ): Promise<IngredientSummaries> {
   if (!alternative) return { western: null, dupe: null };
 
-  const prompt = `You are writing two short ingredient summaries for a skincare comparison card. Use plain English a normal shopper can follow. Each summary is 2–3 sentences.
+  const prompt = `You are writing two short ingredient summaries for a skincare comparison card. Use plain English a normal shopper can follow. Each summary is 2 sentences MAX — these complement a visual ingredient breakdown (flagged ingredients and key actives are already shown as icons/tags), so do NOT re-list the actives or flagged ingredients. Focus on the takeaway.
 
 WESTERN PRODUCT
 - Name: ${product.name}
@@ -451,21 +455,20 @@ K-BEAUTY DUPE
 - Brand: ${alternative.brand || "unknown"}
 - Price: ${alternative.price != null ? `$${alternative.price}` : "unknown"}
 - Key actives: ${alternative.key_actives || "(none listed)"}
+- Flagged ingredients: ${alternative.flagged_ingredients || "(none listed)"}
 
-WESTERN SUMMARY (2–3 sentences)
-- Explain what the western product's key actives do for skin.
-- Call out the flagged ingredients (if any) and briefly explain why each one matters (irritation, hormone disruption, dryness, etc.).
-- Note the brand markup factor — for luxury / prestige brands, most of the price is the brand, packaging, and marketing rather than the formula. Be specific when the price gap with the dupe is meaningful (e.g. "you're paying ~3x more for similar actives").
+WESTERN SUMMARY (2 sentences max)
+- Briefly describe what the formula does for skin and, if relevant, why the flagged ingredients matter (irritation, hormone disruption, dryness, etc.).
+- Call out the brand-markup angle when the price gap with the dupe is meaningful (e.g. "you're paying ~3x more for similar actives").
 
-DUPE SUMMARY (2–3 sentences)
-- Explain what the K-beauty product's key actives do for skin.
-- Note what it SKIPS compared to the western product (e.g. fragrance, denatured alcohol, parabens, dyes) and why that's a benefit (less irritation, gentler on barrier, safer for sensitive skin). If the western has no flagged ingredients, instead highlight what makes the K-beauty formulation cleaner or more thoughtful.
+DUPE SUMMARY (2 sentences max)
+- Briefly describe what the formula does for skin and what makes it a cleaner/smarter swap (skips fragrance, denatured alcohol, parabens, dyes — or, if the western has no flags, why this formulation is more thoughtful).
 
 Respond with ONLY a JSON object — no markdown, no preamble, no commentary:
 
 {
-  "western": "<2–3 sentence paragraph>",
-  "dupe": "<2–3 sentence paragraph>"
+  "western": "<2 sentence paragraph>",
+  "dupe": "<2 sentence paragraph>"
 }`;
 
   const text = await callClaude(prompt, 512);
