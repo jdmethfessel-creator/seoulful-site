@@ -67,7 +67,7 @@ export default function Home() {
             lineHeight: 1.55,
           }}
         >
-          Paste any beauty product URL and find the K-beauty alternative —
+          Search or paste any beauty product URL and find the K-beauty alternative —
           same actives, cleaner formula, lower price.
         </p>
         <p
