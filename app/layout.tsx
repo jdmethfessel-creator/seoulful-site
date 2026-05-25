@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Syne, DM_Sans } from "next/font/google";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { PremiumProvider } from "@/components/PremiumProvider";
 import SiteNav from "@/components/SiteNav";
@@ -60,6 +61,7 @@ export default function RootLayout({
           <SiteNav />
           {children}
         </PremiumProvider>
+        <Analytics />
       </body>
     </html>
   );
