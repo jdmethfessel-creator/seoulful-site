@@ -23,7 +23,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "kDupe — K-beauty intelligence. Free forever.",
+  title: "kDupe — K-beauty intelligence. Stop overpaying for beauty.",
   description:
     "Paste any skincare product and instantly find the K-beauty alternative with the same active ingredients — at a fraction of the price.",
 };

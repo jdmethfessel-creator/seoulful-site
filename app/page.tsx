@@ -264,7 +264,7 @@ export default function Home() {
           fontWeight: 300,
         }}
       >
-        kDupe · K-beauty intelligence. Free forever.
+        kDupe · K-beauty intelligence. Stop overpaying for beauty.
       </footer>
     </main>
   );
